@@ -30,6 +30,7 @@ Typical usage:
 
 from __future__ import annotations
 
+import gc
 import logging
 import random
 import sys
@@ -54,6 +55,33 @@ class QwenEditPipeline:
         self._device: str = "cuda"
         self._pending_loras: list[tuple[Path, str, float]] = []
         self._loaded_adapters: list[tuple[str, float]] = []
+
+    def unload(self) -> None:
+        """Release GPU/CPU memory held by the underlying diffusers pipeline."""
+        pipe = self._pipe
+        self._pipe = None
+        self._pending_loras.clear()
+        self._loaded_adapters.clear()
+        if pipe is None:
+            return
+
+        for attr in ("transformer", "text_encoder", "vae", "tokenizer", "processor"):
+            try:
+                setattr(pipe, attr, None)
+            except Exception:
+                pass
+
+        try:
+            if hasattr(pipe, "to"):
+                pipe.to("cpu")
+        except Exception:
+            pass
+
+        del pipe
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+        logger.info("Pipeline unloaded and CUDA cache cleared.")
 
     # ------------------------------------------------------------------
     # Pipeline assembly

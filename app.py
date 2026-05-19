@@ -165,7 +165,6 @@ def load_pipeline_config(yaml_name: str | None) -> tuple[Any, ...]:
             1.0,
             None,
             gr.update(interactive=False, value="Initializing…"),
-            None,
         )
 
     config_path = TESTS_DIR / yaml_name
@@ -220,7 +219,6 @@ def load_pipeline_config(yaml_name: str | None) -> tuple[Any, ...]:
         float(inf_cfg.get("denoise", 1.0)),
         str(config_path),
         gr.update(interactive=False, value="Initializing…"),
-        None,
     )
 
 
@@ -237,15 +235,15 @@ def on_seed_type_change(seed_type: str) -> Any:
     return gr.update(value=None, interactive=False)
 
 
-def on_bypass_pending() -> tuple[Any, Any, str]:
+def on_bypass_pending() -> tuple[Any, str]:
     return (
         gr.update(interactive=False, value="Initializing…"),
-        None,
         "Reinitializing…",
     )
 
 
 def initialize_models(
+    previous_pipeline: QwenEditPipeline | None,
     config_path_str: str | None,
     *lora_bypasses: Any,
 ) -> tuple[Any, Any, str]:
@@ -267,7 +265,12 @@ def initialize_models(
             f"Config file not found: {config_path}",
         )
 
+    pipeline: QwenEditPipeline | None = None
     try:
+        if previous_pipeline is not None:
+            logger.info("Unloading previous pipeline before reinitialization.")
+            previous_pipeline.unload()
+
         data = _load_yaml(config_path)
         config_dir = config_path.resolve().parent
         models_cfg = data.get("models", {})
@@ -318,6 +321,8 @@ def initialize_models(
         )
 
     except Exception as exc:
+        if pipeline is not None:
+            pipeline.unload()
         logger.exception("Model initialization failed")
         log_text = _log_handler.getvalue() + f"\nERROR: {exc}"
         return (
@@ -529,10 +534,9 @@ def build_ui() -> gr.Blocks:
             denoise_nb,
             config_state,
             run_btn,
-            pipeline_state,
         ]
 
-        _init_inputs = [config_state, *lora_bypasses]
+        _init_inputs = [pipeline_state, config_state, *lora_bypasses]
         _init_outputs = [pipeline_state, run_btn, model_status_md]
 
         load_fn = load_pipeline_config
@@ -550,7 +554,7 @@ def build_ui() -> gr.Blocks:
         for slot in lora_rows:
             slot["bypass"].change(
                 on_bypass_pending,
-                outputs=[run_btn, pipeline_state, model_status_md],
+                outputs=[run_btn, model_status_md],
             ).then(initialize_models, inputs=_init_inputs, outputs=_init_outputs)
 
         run_inputs = [
