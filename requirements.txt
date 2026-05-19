@@ -1,5 +1,7 @@
 # Qwen-Image-Edit-2511 standalone inference
-# Install with: pip install -r requirements.txt
+# Install with: ./install.sh  (recommended — picks a CUDA-matched torch build)
+# Or manually: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+#               pip install -r requirements.txt
 #
 # Recommended env var to reduce CUDA allocator fragmentation on small-VRAM GPUs:
 #   export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
