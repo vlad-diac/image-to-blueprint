@@ -125,8 +125,7 @@ download_hf_file() {
         tmp_dir="$(mktemp -d)"
         # shellcheck disable=SC2086
         if hf download "$repo" "$remote_path" \
-            --local-dir "$tmp_dir" \
-            --local-dir-use-symlinks False; then
+            --local-dir "$tmp_dir"; then
             # hf may preserve remote subdirs under tmp_dir
             local found
             found="$(find "$tmp_dir" -type f -name "$dest_filename" | head -n 1)"
@@ -232,8 +231,7 @@ download_config_snapshot() {
         --exclude "*.safetensors" \
         --exclude "*.bin" \
         --exclude "*.gguf" \
-        --local-dir "$SNAPSHOT_DIR" \
-        --local-dir-use-symlinks False
+        --local-dir "$SNAPSHOT_DIR"
 
     echo
     echo "[done] Config snapshot at: $SNAPSHOT_DIR"
