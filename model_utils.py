@@ -143,38 +143,47 @@ def build_transformer(
     path: Optional[str | Path],
     config_source: str,
     dtype: torch.dtype = torch.bfloat16,
+    attention_backend: Optional[str] = None,
 ) -> QwenImageTransformer2DModel:
     if path is None:
         logger.info("Transformer source: HF subfolder of %s", config_source)
-        return QwenImageTransformer2DModel.from_pretrained(
+        transformer = QwenImageTransformer2DModel.from_pretrained(
             config_source, subfolder="transformer", torch_dtype=dtype,
         )
+    else:
+        path = Path(path)
+        if not path.exists():
+            raise FileNotFoundError(f"Transformer file not found: {path}")
 
-    path = Path(path)
-    if not path.exists():
-        raise FileNotFoundError(f"Transformer file not found: {path}")
+        suffix = path.suffix.lower()
+        if suffix == ".gguf":
+            logger.info("Transformer source: GGUF %s", path)
+            transformer = QwenImageTransformer2DModel.from_single_file(
+                str(path),
+                quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
+                torch_dtype=dtype,
+                config=config_source,
+                subfolder="transformer",
+            )
+        elif suffix == ".safetensors":
+            logger.info("Transformer source: single safetensors %s", path)
+            transformer = QwenImageTransformer2DModel.from_single_file(
+                str(path),
+                torch_dtype=dtype,
+                config=config_source,
+                subfolder="transformer",
+            )
+        else:
+            raise ValueError(
+                f"Unsupported transformer file extension: {suffix!r} "
+                "(must be .gguf or .safetensors)"
+            )
 
-    suffix = path.suffix.lower()
-    if suffix == ".gguf":
-        logger.info("Transformer source: GGUF %s", path)
-        return QwenImageTransformer2DModel.from_single_file(
-            str(path),
-            quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
-            torch_dtype=dtype,
-            config=config_source,
-            subfolder="transformer",
-        )
-    if suffix == ".safetensors":
-        logger.info("Transformer source: single safetensors %s", path)
-        return QwenImageTransformer2DModel.from_single_file(
-            str(path),
-            torch_dtype=dtype,
-            config=config_source,
-            subfolder="transformer",
-        )
-    raise ValueError(
-        f"Unsupported transformer file extension: {suffix!r} (must be .gguf or .safetensors)"
-    )
+    if attention_backend is not None:
+        transformer.set_attention_backend(attention_backend)
+        logger.info("Transformer attention backend: %s", attention_backend)
+
+    return transformer
 
 
 def build_vae(
@@ -287,6 +296,7 @@ def build_pipeline(
     device: str = "cuda",
     enable_offload: bool = False,
     compile_text_encoder: bool = False,
+    attention_backend: Optional[str] = None,
 ) -> QwenImageEditPlusPipeline:
     """
     Assemble a `QwenImageEditPlusPipeline` from an explicit-component config dict.
@@ -309,7 +319,15 @@ def build_pipeline(
     after loading. This fuses the FP8-cast + scale + matmul per-layer into a
     single CUDA kernel, eliminating intermediate BF16 buffers and CPU dispatch gaps
     that cause GPU utilization to drop between layers.
+
+    `attention_backend`: diffusers attention backend for the transformer
+    (e.g. `_native_flash`, `flash`, `_flash_3_hub`). None keeps the default.
     """
+    if device == "cuda":
+        torch.backends.cuda.enable_flash_sdp(True)
+        torch.backends.cuda.enable_mem_efficient_sdp(True)
+        torch.backends.cuda.enable_math_sdp(True)
+
     default_repo = components.get("default_repo") or DEFAULT_REPO
     default_local = components.get("default_local")
     config_source = _resolve_config_source(default_repo, default_local)
@@ -322,6 +340,7 @@ def build_pipeline(
         path=tx_cfg.get("path"),
         config_source=config_source,
         dtype=dtype,
+        attention_backend=attention_backend,
     )
     vae = build_vae(
         path=vae_cfg.get("path"),

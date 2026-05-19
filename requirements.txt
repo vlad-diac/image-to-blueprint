@@ -15,6 +15,9 @@ transformers>=4.51.0
 # GPU model loading / offloading
 accelerate>=1.0.0
 
+# LoRA adapters — required by diffusers load_lora_weights / set_adapters
+peft>=0.13.0
+
 # Deep learning backend
 torch>=2.3.0
 torchvision>=0.18.0

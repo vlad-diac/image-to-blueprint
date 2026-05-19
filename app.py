@@ -164,6 +164,8 @@ def load_pipeline_config(yaml_name: str | None) -> tuple[Any, ...]:
             1.0,
             1.0,
             None,
+            gr.update(interactive=False, value="Initializing…"),
+            None,
         )
 
     config_path = TESTS_DIR / yaml_name
@@ -217,6 +219,8 @@ def load_pipeline_config(yaml_name: str | None) -> tuple[Any, ...]:
         float(inf_cfg.get("cfg", 1.0)),
         float(inf_cfg.get("denoise", 1.0)),
         str(config_path),
+        gr.update(interactive=False, value="Initializing…"),
+        None,
     )
 
 
@@ -233,7 +237,98 @@ def on_seed_type_change(seed_type: str) -> Any:
     return gr.update(value=None, interactive=False)
 
 
+def on_bypass_pending() -> tuple[Any, Any, str]:
+    return (
+        gr.update(interactive=False, value="Initializing…"),
+        None,
+        "Reinitializing…",
+    )
+
+
+def initialize_models(
+    config_path_str: str | None,
+    *lora_bypasses: Any,
+) -> tuple[Any, Any, str]:
+    _log_handler.clear()
+    logger = logging.getLogger(__name__)
+
+    if not config_path_str:
+        return (
+            None,
+            gr.update(interactive=False, value="Run Pipeline"),
+            "No pipeline configuration loaded.",
+        )
+
+    config_path = Path(config_path_str)
+    if not config_path.exists():
+        return (
+            None,
+            gr.update(interactive=False, value="Run Pipeline"),
+            f"Config file not found: {config_path}",
+        )
+
+    try:
+        data = _load_yaml(config_path)
+        config_dir = config_path.resolve().parent
+        models_cfg = data.get("models", {})
+        hw_cfg = data.get("hardware", {})
+
+        device = hw_cfg.get("device", "cuda")
+        dtype_s = hw_cfg.get("dtype", "bfloat16")
+        offload = bool(hw_cfg.get("offload", False))
+        compile_ = bool(hw_cfg.get("compile", False))
+        attention_backend = hw_cfg.get("attention_backend")
+        dtype = _DTYPE_MAP.get(dtype_s, torch.bfloat16)
+
+        components = _build_components_dict(models_cfg, config_dir)
+        loras_cfg: list[dict[str, Any]] = models_cfg.get("loras", [])
+
+        logger.info("Initializing models from %s", config_path.name)
+        pipeline = QwenEditPipeline().load(
+            components=components,
+            dtype=dtype,
+            device=device,
+            enable_offload=offload,
+            compile_text_encoder=compile_,
+            attention_backend=attention_backend,
+        )
+
+        for i, lora in enumerate(loras_cfg):
+            lora_path = _resolve(lora.get("path"), config_dir)
+            if not lora_path:
+                continue
+            bypass = bool(lora_bypasses[i]) if i < len(lora_bypasses) else False
+            pipeline.add_lora(
+                path=lora_path,
+                weight=float(lora.get("weight", 1.0)),
+                name=lora.get("name"),
+                bypass=bypass,
+            )
+
+        pipeline.flush_loras()
+
+        log_text = _log_handler.getvalue()
+        status = "Models ready."
+        if log_text:
+            status = f"{status}\n\n{log_text}"
+        return (
+            pipeline,
+            gr.update(interactive=True, value="Run Pipeline"),
+            status,
+        )
+
+    except Exception as exc:
+        logger.exception("Model initialization failed")
+        log_text = _log_handler.getvalue() + f"\nERROR: {exc}"
+        return (
+            None,
+            gr.update(interactive=False, value="Run Pipeline"),
+            f"Init failed: {exc}\n\n{log_text}",
+        )
+
+
 def run_pipeline(
+    pipeline: QwenEditPipeline | None,
     config_path_str: str | None,
     image_name: str | None,
     positive_prompt: str,
@@ -248,6 +343,9 @@ def run_pipeline(
 ) -> tuple[Any, str]:
     _log_handler.clear()
     logger = logging.getLogger(__name__)
+
+    if pipeline is None:
+        return None, "Models not initialized. Load a configuration and wait for initialization."
 
     if not config_path_str:
         return None, "Load a pipeline configuration first."
@@ -266,17 +364,6 @@ def run_pipeline(
     if not positive_prompt.strip():
         return None, "Positive prompt is required."
 
-    data = _load_yaml(config_path)
-    config_dir = config_path.resolve().parent
-    models_cfg = data.get("models", {})
-    hw_cfg = data.get("hardware", {})
-
-    device = hw_cfg.get("device", "cuda")
-    dtype_s = hw_cfg.get("dtype", "bfloat16")
-    offload = bool(hw_cfg.get("offload", False))
-    compile_ = bool(hw_cfg.get("compile", False))
-    dtype = _DTYPE_MAP.get(dtype_s, torch.bfloat16)
-
     if seed_type == "Randomized":
         seed: int | None = None
     else:
@@ -286,36 +373,26 @@ def run_pipeline(
     if seed is None:
         seed = random.randint(0, 2**32 - 1)
 
-    components = _build_components_dict(models_cfg, config_dir)
+    weight_specs: list[tuple[str, float]] = []
+    for i in range(MAX_LORAS):
+        base = i * 4
+        name, weight, bypass, path = (
+            lora_fields[base],
+            float(lora_fields[base + 1] or 1.0),
+            bool(lora_fields[base + 2]),
+            lora_fields[base + 3],
+        )
+        if not path or bypass:
+            continue
+        adapter_name = name or Path(str(path)).stem
+        weight_specs.append((adapter_name, weight))
 
     try:
         image = Image.open(input_path).convert("RGB")
         logger.info("Input: %s  (%dx%d)", input_path, *image.size)
 
-        pipeline = QwenEditPipeline().load(
-            components=components,
-            dtype=dtype,
-            device=device,
-            enable_offload=offload,
-            compile_text_encoder=compile_,
-        )
-
-        for i in range(MAX_LORAS):
-            base = i * 4
-            _name, weight, bypass, path = (
-                lora_fields[base],
-                float(lora_fields[base + 1] or 1.0),
-                bool(lora_fields[base + 2]),
-                lora_fields[base + 3],
-            )
-            if not path:
-                continue
-            pipeline.add_lora(
-                path=path,
-                weight=weight,
-                name=_name or None,
-                bypass=bypass,
-            )
+        if weight_specs:
+            pipeline.update_lora_weights(weight_specs)
 
         output_image = pipeline.run(
             image=image,
@@ -361,6 +438,7 @@ def build_ui() -> gr.Blocks:
         gr.Markdown("# Image to Blueprint — Pipeline UI")
 
         config_state = gr.State(value=None)
+        pipeline_state = gr.State(value=None)
 
         with gr.Row():
             pipeline_dd = gr.Dropdown(
@@ -426,7 +504,8 @@ def build_ui() -> gr.Blocks:
                 steps_nb = gr.Number(label="Steps", value=4, precision=0, minimum=1, maximum=100, step=1)
                 denoise_nb = gr.Number(label="Denoise", value=1.0, minimum=0.0, maximum=1.0, step=0.05)
 
-        run_btn = gr.Button("Run Pipeline", variant="primary")
+        model_status_md = gr.Markdown("No pipeline loaded.")
+        run_btn = gr.Button("Run Pipeline", variant="primary", interactive=False)
 
         with gr.Group():
             gr.Markdown("### Output")
@@ -449,17 +528,33 @@ def build_ui() -> gr.Blocks:
             cfg_nb,
             denoise_nb,
             config_state,
+            run_btn,
+            pipeline_state,
         ]
 
+        _init_inputs = [config_state, *lora_bypasses]
+        _init_outputs = [pipeline_state, run_btn, model_status_md]
+
         load_fn = load_pipeline_config
-        pipeline_dd.change(load_fn, inputs=[pipeline_dd], outputs=load_outputs)
-        load_btn.click(load_fn, inputs=[pipeline_dd], outputs=load_outputs)
+        pipeline_dd.change(load_fn, inputs=[pipeline_dd], outputs=load_outputs).then(
+            initialize_models, inputs=_init_inputs, outputs=_init_outputs
+        )
+        load_btn.click(load_fn, inputs=[pipeline_dd], outputs=load_outputs).then(
+            initialize_models, inputs=_init_inputs, outputs=_init_outputs
+        )
 
         image_dd.change(preview_input_image, inputs=[image_dd], outputs=[image_preview])
 
         seed_type_rb.change(on_seed_type_change, inputs=[seed_type_rb], outputs=[seed_nb])
 
+        for slot in lora_rows:
+            slot["bypass"].change(
+                on_bypass_pending,
+                outputs=[run_btn, pipeline_state, model_status_md],
+            ).then(initialize_models, inputs=_init_inputs, outputs=_init_outputs)
+
         run_inputs = [
+            pipeline_state,
             config_state,
             image_dd,
             positive_tb,
@@ -480,7 +575,9 @@ def build_ui() -> gr.Blocks:
         )
 
         if yaml_choices:
-            demo.load(load_fn, inputs=[pipeline_dd], outputs=load_outputs)
+            demo.load(load_fn, inputs=[pipeline_dd], outputs=load_outputs).then(
+                initialize_models, inputs=_init_inputs, outputs=_init_outputs
+            )
 
     return demo
 

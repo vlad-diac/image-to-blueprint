@@ -124,3 +124,4 @@ hardware:
   compile:  false   # set true to reduce CPU dispatch overhead between FP8 layers
                     # uses aot_eager backend (no Triton required, works on Windows)
                     # for full kernel fusion on Linux: change backend to 'inductor'
+  attention_backend: _native_flash   # PyTorch flash SDP; use flash or _flash_3_hub on Linux

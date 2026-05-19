@@ -84,3 +84,4 @@ hardware:
   # Better alternative: use the local FP8 text encoder (ship_blueprint_top.yaml)
   # which halves the text encoder footprint to ~7 GB.
   offload: true
+  attention_backend: _native_flash   # PyTorch flash SDP; use flash or _flash_3_hub on Linux

@@ -217,6 +217,7 @@ def main(argv: list[str] | None = None) -> None:
     dtype_s = args.dtype   or hw_cfg.get("dtype",   "bfloat16")
     offload  = args.offload or bool(hw_cfg.get("offload", False))
     compile_ = args.compile or bool(hw_cfg.get("compile", False))
+    attention_backend = hw_cfg.get("attention_backend")
     dtype    = _DTYPE_MAP.get(dtype_s, torch.bfloat16)
 
     # ---- load image ----
@@ -230,6 +231,7 @@ def main(argv: list[str] | None = None) -> None:
         device=device,
         enable_offload=offload,
         compile_text_encoder=compile_,
+        attention_backend=attention_backend,
     )
 
     for lora in loras_cfg:
@@ -243,6 +245,8 @@ def main(argv: list[str] | None = None) -> None:
             name=lora.get("name"),
             bypass=bool(lora.get("bypass", False)),
         )
+
+    pipeline.flush_loras()
 
     # ---- run ----
     output_image = pipeline.run(

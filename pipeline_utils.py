@@ -66,6 +66,7 @@ class QwenEditPipeline:
         device: str = "cuda",
         enable_offload: bool = False,
         compile_text_encoder: bool = False,
+        attention_backend: Optional[str] = None,
     ) -> "QwenEditPipeline":
         """
         Build the underlying `QwenImageEditPlusPipeline` from an explicit-component
@@ -83,6 +84,7 @@ class QwenEditPipeline:
             device=device,
             enable_offload=enable_offload,
             compile_text_encoder=compile_text_encoder,
+            attention_backend=attention_backend,
         )
         return self
 
@@ -114,6 +116,25 @@ class QwenEditPipeline:
         adapter_name = name if name is not None else lora_path.stem
         self._pending_loras.append((lora_path, adapter_name, weight))
         return self
+
+    def flush_loras(self) -> None:
+        """Load all pending LoRA adapters into the pipeline."""
+        self._flush_loras()
+
+    def update_lora_weights(self, specs: list[tuple[str, float]]) -> None:
+        """Update weights for already-loaded adapters (bypassed adapters are absent)."""
+        if self._pipe is None or not self._loaded_adapters:
+            return
+
+        loaded_names = {n for n, _ in self._loaded_adapters}
+        names = [n for n, w in specs if n and n in loaded_names]
+        weights = [w for n, w in specs if n and n in loaded_names]
+        if not names:
+            return
+
+        self._pipe.set_adapters(names, adapter_weights=weights)
+        self._loaded_adapters = list(zip(names, weights))
+        logger.info("Updated adapter weights: %s -> %s", names, weights)
 
     def _flush_loras(self) -> None:
         if not self._pending_loras:
