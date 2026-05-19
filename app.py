@@ -3,10 +3,12 @@ app.py — Gradio UI for YAML-driven Qwen-Image-Edit-2511 pipeline runs.
 
 Launch:
   python app.py
+  python app.py --listen          # bind 0.0.0.0 for remote access
 """
 
 from __future__ import annotations
 
+import argparse
 import io
 import logging
 import random
@@ -483,9 +485,22 @@ def build_ui() -> gr.Blocks:
     return demo
 
 
-def main() -> None:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Image to Blueprint — Gradio UI")
+    parser.add_argument(
+        "--listen",
+        action="store_true",
+        help="Bind to 0.0.0.0 (accessible on the network). Default: 127.0.0.1 only.",
+    )
+    parser.add_argument("--port", type=int, default=7860, help="Server port (default: 7860).")
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    server_name = "0.0.0.0" if args.listen else "127.0.0.1"
     demo = build_ui()
-    demo.launch(server_name="127.0.0.1", server_port=7860)
+    demo.launch(server_name=server_name, server_port=args.port)
 
 
 if __name__ == "__main__":
