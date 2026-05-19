@@ -29,5 +29,8 @@ safetensors>=0.4.0
 # YAML config file support
 PyYAML>=6.0
 
+# Web UI
+gradio>=4.0.0
+
 # Optional: ~10% faster CUDA dequantization kernels for GGUF
 # kernels
