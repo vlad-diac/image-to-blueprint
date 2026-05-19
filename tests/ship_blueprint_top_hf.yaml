@@ -1,0 +1,81 @@
+# Test config: ship top-view blueprint — PURE HUGGINGFACE.
+#
+# This config omits all component `path:` fields, so every component (transformer
+# + VAE + text encoder + tokenizer + processor) is downloaded from
+# `Qwen/Qwen-Image-Edit-2511` on first run (~20 GB).  Use this as a sanity check
+# that the standalone pipeline works without any local files.
+#
+# For the production "everything local" config that matches the ComfyUI workflow,
+# see ship_blueprint_top.yaml.
+
+input:  ../../output/Qwen_Edit_2511_Q4_00042_.png
+output: ../../output/ship_blueprint_top_hf-Qwen_Edit_2511_Q4_00042_.png
+
+models:
+  default_repo:  Qwen/Qwen-Image-Edit-2511
+  # default_local: ../../models/Qwen--Qwen-Image-Edit-2511   # optional local snapshot
+
+  # All component sections omitted → each is downloaded from default_repo / default_local.
+
+  loras:
+    - name:   multiple-angles
+      path:   ../../models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors
+      weight: 1.0
+      bypass: false
+    - name:   lightning
+      path:   ../../models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
+      weight: 1.0
+      bypass: false
+
+inference:
+  positive_prompt: |
+    <sks> front view elevated shot medium shot
+    Use the input image as the sole reference for the vessel's geometry and structure.
+
+    Generate a perfectly orthographic top-down blueprint-style view of the ship on a pure white background.
+
+    The vessel should be simplified into a clean naval silhouette diagram while preserving the real proportions and layout from the reference image.
+
+    Include only major visible structural components:
+    - hull outline
+    - deck layout
+    - bridge/superstructure
+    - cranes
+    - masts
+    - antennas
+    - radar domes
+    - smokestacks
+    - lifeboats
+    - cargo areas
+    - crow's nest position
+    - helipad if present
+
+    Render the ship as a minimal technical schematic:
+    - solid black or dark navy linework
+    - flat fills only
+    - no shading
+    - no perspective distortion
+    - no ocean/water
+    - no environment
+    - no shadows
+    - no texture
+    - no weathering
+    - no labels or text
+    - no artistic styling
+
+    The final result should resemble a simplified naval recognition blueprint or maritime identification diagram with crisp edges and accurate proportions.
+
+    Preserve the overall dimensions, relative placement of structures, and silhouette fidelity from the original vessel.
+  negative_prompt: ""
+
+  sampler:   euler
+  scheduler: simple
+  steps:     4
+  cfg:       1.0
+  denoise:   1.0
+  seed:      randomize
+
+hardware:
+  device:  cuda
+  dtype:   bfloat16
+  offload: false

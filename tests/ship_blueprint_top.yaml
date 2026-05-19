@@ -1,0 +1,126 @@
+# Test config: ship top-view blueprint — ALL-LOCAL components.
+#
+# Mirrors the ComfyUI workflow exactly: every weight file comes from the
+# local models/ tree.  The only HF network traffic is the tiny config files
+# (text_encoder/config.json, tokenizer/, processor/, transformer/config.json,
+# vae/config.json — total ~< 5 MB) — set `default_local:` below to remove that
+# too.
+#
+# Workflow nodes replicated:
+#   LoadImage (41)            → input image (4).png
+#   UnetLoaderGGUF (113)      → qwen-image-edit-2511-Q3_K_M.gguf
+#   CLIPLoader (93)           → qwen_2.5_vl_7b_fp8_scaled.safetensors  (FP8-scaled)
+#   VAELoader (95)            → qwen_image_vae.safetensors
+#   LoraLoaderModelOnly (109) → qwen-image-edit-2511-multiple-angles-lora.safetensors  strength=1
+#   LoraLoaderModelOnly (102) → Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors  strength=1
+#   ModelSamplingAuraFlow(94) → shift=3.1   (standalone uses log(3) — see model_utils.build_lightning_scheduler)
+#   CFGNorm (98)              → strength=1  (not replicated — no-op at cfg=1.0)
+#   TextEncodeQwenImageEditPlus (positive + negative) → handled internally by QwenImageEditPlusPipeline
+#   FluxKontextMultiReferenceLatentMethod → "index_timestep_zero" (diffusers default differs)
+#   KSampler (106)            → euler / simple / steps=4 / cfg=1.0 / denoise=1.0
+
+input:  ../../output/Qwen_Edit_2511_Q4_00042_.png
+output: ../../output/ship_blueprint_top-Qwen_Edit_2511_Q4_00042_.png
+
+models:
+  # HF repo used for small config / tokenizer / processor files, and as the
+  # fallback for any component below that lacks a `path`.
+  default_repo:  Qwen/Qwen-Image-Edit-2511
+
+  # Optional: path to a local HF-snapshot directory. When present, used in
+  # place of the HF download for all config / tokenizer / processor lookups.
+  # default_local: ../../models/Qwen--Qwen-Image-Edit-2511
+
+  transformer:
+    # .gguf  → loaded via diffusers GGUFQuantizationConfig (on-the-fly dequant)
+    # .safetensors → loaded via from_single_file (full BF16)
+    # (omit `path:` entirely → downloaded from default_repo/default_local)
+    path: ../../models/unet/qwen-image-edit-2511-Q3_K_M.gguf
+
+  vae:
+    # Single-file VAE — loaded with AutoencoderKLQwenImage.from_single_file
+    path: ../../models/vae/qwen_image_vae.safetensors
+
+  text_encoder:
+    # ComfyUI FP8-scaled single-file safetensors. Dequantized to BF16 at load
+    # time. Numerically equivalent to ComfyUI's per-forward FP8 dequant.
+    path:   ../../models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+    format: fp8_scaled
+
+  loras:
+    - name:   multiple-angles
+      path:   ../../models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors
+      weight: 1.0
+      bypass: false
+    - name:   lightning
+      path:   ../../models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
+      weight: 1.0
+      bypass: false
+
+inference:
+  # TextEncodeQwenImageEditPlus — positive (node 112 in the workflow)
+  # The <sks> token activates the multiple-angles LoRA subject binding.
+  # Format: <sks> <angle> <camera_height> <framing>
+  # Angle options (from the LoRA training prompts):
+  #   front view / front-right quarter view / right side view / back-right quarter view /
+  #   back view / back-left quarter view / left side view / front-left quarter view
+  # Camera height: low-angle shot / eye-level shot / elevated shot / high-angle shot
+  # Framing:       close-up / medium shot / wide shot
+  positive_prompt: |
+    <sks> front view elevated shot medium shot
+    Use the input image as the sole reference for the vessel's geometry and structure.
+
+    Generate a perfectly orthographic top-down blueprint-style view of the ship on a pure white background.
+
+    The vessel should be simplified into a clean naval silhouette diagram while preserving the real proportions and layout from the reference image.
+
+    Include only major visible structural components:
+    - hull outline
+    - deck layout
+    - bridge/superstructure
+    - cranes
+    - masts
+    - antennas
+    - radar domes
+    - smokestacks
+    - lifeboats
+    - cargo areas
+    - crow's nest position
+    - helipad if present
+
+    Render the ship as a minimal technical schematic:
+    - solid black or dark navy linework
+    - flat fills only
+    - no shading
+    - no perspective distortion
+    - no ocean/water
+    - no environment
+    - no shadows
+    - no texture
+    - no weathering
+    - no labels or text
+    - no artistic styling
+
+    The final result should resemble a simplified naval recognition blueprint or maritime identification diagram with crisp edges and accurate proportions.
+
+    Preserve the overall dimensions, relative placement of structures, and silhouette fidelity from the original vessel.
+
+  # TextEncodeQwenImageEditPlus — negative (node 100 in the workflow)
+  # Empty in the workflow; cfg=1.0 so negative is unused.
+  negative_prompt: ""
+
+  # KSampler — node 106
+  sampler:   euler
+  scheduler: simple
+  steps:     4
+  cfg:       1.0
+  denoise:   1.0
+  seed:      randomize          # integer or "randomize"
+
+hardware:
+  device:   cuda
+  dtype:    bfloat16
+  offload:  false   # set true if you run out of VRAM
+  compile:  false   # set true to reduce CPU dispatch overhead between FP8 layers
+                    # uses aot_eager backend (no Triton required, works on Windows)
+                    # for full kernel fusion on Linux: change backend to 'inductor'

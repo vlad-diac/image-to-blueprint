@@ -1,0 +1,26 @@
+# Qwen-Image-Edit-2511 standalone inference
+# Install with: pip install -r requirements.txt
+
+# Core diffusion pipeline — must be >= 0.35.0 for QwenImage + GGUF support
+diffusers>=0.35.0
+
+# Multimodal text/vision encoder (Qwen2.5-VL)
+transformers>=4.51.0
+
+# GPU model loading / offloading
+accelerate>=1.0.0
+
+# Deep learning backend
+torch>=2.3.0
+
+# Image I/O
+Pillow>=10.0.0
+
+# GGUF file reading — required for --gguf mode
+gguf>=0.10.0
+
+# YAML config file support
+PyYAML>=6.0
+
+# Optional: ~10% faster CUDA dequantization kernels for GGUF
+kernels
