@@ -19,8 +19,8 @@
 #   FluxKontextMultiReferenceLatentMethod → "index_timestep_zero" (diffusers default differs)
 #   KSampler (106)            → euler / simple / steps=4 / cfg=1.0 / denoise=1.0
 
-input:  ../../output/Qwen_Edit_2511_Q4_00042_.png
-output: ../../output/ship_blueprint_top-Qwen_Edit_2511_Q4_00042_.png
+input:  ../input/Qwen_Edit_2511_Q4_00042_.png
+output: ../output/ship_blueprint_top-Qwen_Edit_2511_Q4_00042_.png
 
 models:
   # HF repo used for small config / tokenizer / processor files, and as the
@@ -29,31 +29,31 @@ models:
 
   # Optional: path to a local HF-snapshot directory. When present, used in
   # place of the HF download for all config / tokenizer / processor lookups.
-  # default_local: ../../models/Qwen--Qwen-Image-Edit-2511
+  # default_local: ../models/Qwen--Qwen-Image-Edit-2511
 
   transformer:
     # .gguf  → loaded via diffusers GGUFQuantizationConfig (on-the-fly dequant)
     # .safetensors → loaded via from_single_file (full BF16)
     # (omit `path:` entirely → downloaded from default_repo/default_local)
-    path: ../../models/unet/qwen-image-edit-2511-Q3_K_M.gguf
+    path: ../models/unet/qwen-image-edit-2511-Q3_K_M.gguf
 
   vae:
     # Single-file VAE — loaded with AutoencoderKLQwenImage.from_single_file
-    path: ../../models/vae/qwen_image_vae.safetensors
+    path: ../models/vae/qwen_image_vae.safetensors
 
   text_encoder:
     # ComfyUI FP8-scaled single-file safetensors. Dequantized to BF16 at load
     # time. Numerically equivalent to ComfyUI's per-forward FP8 dequant.
-    path:   ../../models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+    path:   ../models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
     format: fp8_scaled
 
   loras:
     - name:   multiple-angles
-      path:   ../../models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors
+      path:   ../models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors
       weight: 1.0
       bypass: false
     - name:   lightning
-      path:   ../../models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
+      path:   ../models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
       weight: 1.0
       bypass: false
 
