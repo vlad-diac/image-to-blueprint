@@ -78,4 +78,9 @@ inference:
 hardware:
   device:  cuda
   dtype:   bfloat16
-  offload: false
+  # HF mode downloads the text encoder in BF16 (~14 GB).
+  # Peak VRAM = 14 (TE) + 3.5 (GGUF transformer) + 0.3 (VAE) + activations ≈ 21 GB.
+  # Set offload: true for GPUs with less than 24 GB, or any time you see OOM.
+  # Better alternative: use the local FP8 text encoder (ship_blueprint_top.yaml)
+  # which halves the text encoder footprint to ~7 GB.
+  offload: true

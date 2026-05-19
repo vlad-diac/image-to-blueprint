@@ -62,13 +62,13 @@ GGUF_FILE="qwen-image-edit-2511-Q3_K_M.gguf"
 GGUF_REPO=""                    # e.g. city96/Qwen-Image-Edit-2511-GGUF
 GGUF_REMOTE=""                  # e.g. qwen-image-edit-2511-Q3_K_M.gguf
 # Option B: direct URL (used if GGUF_REPO is empty)
-GGUF_URL=""                     # e.g. https://huggingface.co/.../resolve/main/....gguf
+GGUF_URL="https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q3_K_M.gguf"                     # e.g. https://huggingface.co/.../resolve/main/....gguf
 
 # LoraLoaderModelOnly (node 109) — multiple angles
 ANGLES_LORA_FILE="qwen-image-edit-2511-multiple-angles-lora.safetensors"
 ANGLES_LORA_REPO=""             # e.g. your-username/qwen-multiple-angles-lora
 ANGLES_LORA_REMOTE=""           # e.g. qwen-image-edit-2511-multiple-angles-lora.safetensors
-ANGLES_LORA_URL=""              # direct URL alternative
+ANGLES_LORA_URL="https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/main/qwen-image-edit-2511-multiple-angles-lora.safetensors"              # direct URL alternative
 
 # =============================================================================
 # HELPERS

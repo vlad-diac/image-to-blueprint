@@ -1,5 +1,8 @@
 # Qwen-Image-Edit-2511 standalone inference
 # Install with: pip install -r requirements.txt
+#
+# Recommended env var to reduce CUDA allocator fragmentation on small-VRAM GPUs:
+#   export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Core diffusion pipeline — must be >= 0.35.0 for QwenImage + GGUF support
 diffusers>=0.35.0
@@ -12,15 +15,19 @@ accelerate>=1.0.0
 
 # Deep learning backend
 torch>=2.3.0
+torchvision>=0.18.0
 
 # Image I/O
 Pillow>=10.0.0
 
-# GGUF file reading — required for --gguf mode
+# GGUF file reading — required for GGUF transformer
 gguf>=0.10.0
+
+# Fast safetensors loading — required for local VAE and FP8 text encoder
+safetensors>=0.4.0
 
 # YAML config file support
 PyYAML>=6.0
 
 # Optional: ~10% faster CUDA dequantization kernels for GGUF
-kernels
+# kernels
