@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RunStatus {
+  QUEUED
+  IN_QUEUE
+  IN_PROGRESS
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  TIMED_OUT
+}
+
+model Run {
+  id            String    @id @default(uuid())
+  status        RunStatus @default(QUEUED)
+  positivePrompt String   @db.Text
+  negativePrompt String   @default("") @db.Text
+  steps         Int       @default(4)
+  cfg           Float     @default(1.0)
+  seed          BigInt?
+  inputImage    Bytes
+  outputImage   Bytes?
+  runpodJobId   String?   @unique
+  workerJobDir  String?
+  durationMs    Int?
+  delayMs       Int?
+  executionMs   Int?
+  errorMessage  String?   @db.Text
+  rawStatus     Json?
+  startedAt     DateTime?
+  completedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([status, updatedAt])
+}

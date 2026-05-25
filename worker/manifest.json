@@ -1,0 +1,51 @@
+{
+  "volume_root": "/runpod-volume",
+  "files": [
+    {
+      "dest": "models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors",
+      "source": {
+        "kind": "hf_file",
+        "repo": "Comfy-Org/HunyuanVideo_1.5_repackaged",
+        "path": "split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors"
+      }
+    },
+    {
+      "dest": "models/vae/qwen_image_vae.safetensors",
+      "source": {
+        "kind": "hf_file",
+        "repo": "Comfy-Org/Qwen-Image_ComfyUI",
+        "path": "split_files/vae/qwen_image_vae.safetensors"
+      }
+    },
+    {
+      "dest": "models/unet/qwen-image-edit-2511-Q3_K_M.gguf",
+      "source": {
+        "kind": "url",
+        "url": "https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q3_K_M.gguf"
+      }
+    },
+    {
+      "dest": "models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+      "source": {
+        "kind": "hf_file",
+        "repo": "lightx2v/Qwen-Image-Edit-2511-Lightning",
+        "path": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
+      }
+    },
+    {
+      "dest": "models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors",
+      "source": {
+        "kind": "url",
+        "url": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/main/qwen-image-edit-2511-multiple-angles-lora.safetensors"
+      }
+    },
+    {
+      "dest": "models/Qwen--Qwen-Image-Edit-2511",
+      "source": {
+        "kind": "hf_snapshot",
+        "repo": "Qwen/Qwen-Image-Edit-2511",
+        "exclude": ["*.safetensors", "*.bin", "*.gguf"]
+      }
+    }
+  ]
+}

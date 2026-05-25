@@ -1,0 +1,12 @@
+# Worker image: torch comes from base image — do not pin torch here unless you override the base.
+diffusers>=0.35.0
+transformers>=4.51.0
+accelerate>=1.0.0
+peft>=0.13.0
+Pillow>=10.0.0
+gguf>=0.10.0
+safetensors>=0.4.0
+PyYAML>=6.0
+runpod>=1.6.0
+huggingface_hub>=0.26.0
+httpx>=0.27.0
