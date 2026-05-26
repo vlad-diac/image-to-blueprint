@@ -133,12 +133,12 @@ def main() -> int:
     # -----------------------------------------------------------------------
     # 5. Lightning LoRA
     # -----------------------------------------------------------------------
-    lightning_dest = LORA_DIR / "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors"
+    lightning_dest = LORA_DIR / "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
     if not _exists_file(lightning_dest):
         logger.info("=== Downloading Lightning LoRA ===")
         hf_hub_download(
-            repo_id="fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA",
-            filename="Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors",
+            repo_id="lightx2v/Qwen-Image-Edit-2511-Lightning",
+            filename="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
             local_dir=str(LORA_DIR),
             token=token,
         )

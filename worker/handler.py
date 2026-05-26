@@ -55,7 +55,7 @@ def _build_pipeline() -> QwenEditPipeline:
     te_path          = _check(MODELS / "text_encoders" / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
     snapshot_path    = _check(MODELS / "Qwen--Qwen-Image-Edit-2511")
     lora_angles      = _check(MODELS / "loras"          / "qwen-image-edit-2511-multiple-angles-lora.safetensors")
-    lora_lightning   = _check(MODELS / "loras"          / "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors")
+    lora_lightning   = _check(MODELS / "loras"          / "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors")
 
     pipe = (
         QwenEditPipeline()
