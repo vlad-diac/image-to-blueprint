@@ -8,6 +8,16 @@ import logging
 import os
 from pathlib import Path
 
+# ---------------------------------------------------------------------------
+# HuggingFace cache — must be set before any HF / transformers import so the
+# libraries pick up the volume-backed cache and never attempt network calls.
+# ---------------------------------------------------------------------------
+_VOL_EARLY = Path(os.environ.get("RUNPOD_VOLUME", "/runpod-volume"))
+os.environ.setdefault("HF_HOME",      str(_VOL_EARLY / "huggingface-cache"))
+os.environ.setdefault("HF_HUB_CACHE", str(_VOL_EARLY / "huggingface-cache" / "hub"))
+os.environ["HF_HUB_OFFLINE"]      = "1"   # never download at runtime
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
 import runpod
 import torch
 from PIL import Image
@@ -25,23 +35,40 @@ VOL = Path(os.environ.get("RUNPOD_VOLUME", "/runpod-volume"))
 MODELS = VOL / "models"
 
 
+def _check(p: Path) -> Path:
+    """Log whether a model path exists, then return it."""
+    if p.exists():
+        size = p.stat().st_size / 1024 / 1024 if p.is_file() else None
+        logger.info("✓ found  %s%s", p, f"  ({size:.1f} MB)" if size else "")
+    else:
+        logger.error("✗ MISSING  %s", p)
+    return p
+
+
 def _build_pipeline() -> QwenEditPipeline:
     attn = os.environ.get("ATTN_BACKEND", "_native_flash")
     offload = os.environ.get("ENABLE_OFFLOAD", "").lower() in ("1", "true", "yes")
     compile_te = os.environ.get("COMPILE_TEXT_ENCODER", "").lower() in ("1", "true", "yes")
+
+    # hf_hub_download preserves the repo's subdirectory structure under local_dir,
+    # so the VAE (split_files/vae/…) is nested one level deeper than its parent dir.
+    transformer_path = _check(MODELS / "unet"          / "qwen-image-edit-2511-Q3_K_L.gguf")
+    vae_path         = _check(MODELS / "vae"            / "split_files" / "vae"           / "qwen_image_vae.safetensors")
+    te_path          = _check(MODELS / "text_encoders"  / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
+    snapshot_path    = _check(MODELS / "Qwen--Qwen-Image-Edit-2511")
+    lora_angles      = _check(MODELS / "loras"          / "qwen-image-edit-2511-multiple-angles-lora.safetensors")
+    lora_lightning   = _check(MODELS / "loras"          / "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors")
 
     pipe = (
         QwenEditPipeline()
         .load(
             components={
                 "default_repo": "Qwen/Qwen-Image-Edit-2511",
-                "default_local": str(MODELS / "Qwen--Qwen-Image-Edit-2511"),
-                "transformer": {"path": str(MODELS / "unet" / "qwen-image-edit-2511-Q3_K_M.gguf")},
-                "vae": {"path": str(MODELS / "vae" / "qwen_image_vae.safetensors")},
+                "default_local": str(snapshot_path),
+                "transformer": {"path": str(transformer_path)},
+                "vae": {"path": str(vae_path)},
                 "text_encoder": {
-                    "path": str(
-                        MODELS / "text_encoders" / "qwen_2.5_vl_7b_fp8_scaled.safetensors"
-                    ),
+                    "path": str(te_path),
                     "format": "fp8_scaled",
                 },
             },
@@ -51,16 +78,8 @@ def _build_pipeline() -> QwenEditPipeline:
             compile_text_encoder=compile_te,
             attention_backend=attn if attn else None,
         )
-        .add_lora(
-            MODELS / "loras" / "qwen-image-edit-2511-multiple-angles-lora.safetensors",
-            name="angles",
-        )
-        .add_lora(
-            MODELS
-            / "loras"
-            / "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
-            name="lightning",
-        )
+        .add_lora(lora_angles, name="angles")
+        .add_lora(lora_lightning, name="lightning")
     )
     pipe.flush_loras()
     return pipe
@@ -76,7 +95,6 @@ def handler(event: dict) -> dict:
     job_id = event.get("id")
     if not job_id:
         import uuid
-
         job_id = str(uuid.uuid4())
 
     raw_b64 = inp.get("image_b64")
@@ -90,9 +108,9 @@ def handler(event: dict) -> dict:
         raise ValueError("input.positive_prompt is required")
 
     negative = inp.get("negative_prompt") or ""
-    steps = int(inp.get("steps", 4))
-    cfg = float(inp.get("cfg", 1.0))
-    seed = inp.get("seed")
+    steps    = int(inp.get("steps", 4))
+    cfg      = float(inp.get("cfg", 1.0))
+    seed     = inp.get("seed")
     if seed is not None:
         seed = int(seed)
 
@@ -105,7 +123,7 @@ def handler(event: dict) -> dict:
         seed=seed,
     )
 
-    job_dir = VOL / "jobs" / str(job_id)
+    job_dir  = VOL / "jobs" / str(job_id)
     job_dir.mkdir(parents=True, exist_ok=True)
     out_path = job_dir / "output.png"
     out.save(out_path)

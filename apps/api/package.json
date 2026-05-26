@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "build": "nest build",
+    "dev": "nest start --watch",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "node dist/main.js",
@@ -27,7 +28,7 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
-    "@types/express": "^5.0.0",
+    "@types/express": "^4.17.21",
     "@types/multer": "^1.4.13",
     "@types/node": "^22.10.2",
     "prisma": "^5.22.0",

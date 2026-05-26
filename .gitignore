@@ -1,3 +1,11 @@
 .miniconda/
 Miniconda3-latest-Linux-installer.sh
 __pycache__/
+
+node_modules/
+
+.env
+apps/api/node_modules
+apps/api/.env
+apps/web/node_modules
+apps/web/.env

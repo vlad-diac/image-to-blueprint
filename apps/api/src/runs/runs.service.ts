@@ -263,7 +263,7 @@ export class RunsService {
 
     if (st.status === 'COMPLETED') {
       const parsed = coerceHandlerOutput(st.output);
-      let outputBuf: Uint8Array | undefined;
+      let outputBuf: Buffer | undefined;
       if (parsed?.image_b64) {
         try {
           outputBuf = Buffer.from(parsed.image_b64, 'base64');

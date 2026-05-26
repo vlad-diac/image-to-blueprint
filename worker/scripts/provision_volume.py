@@ -1,159 +1,162 @@
 #!/usr/bin/env python3
 """
-Populate a RunPod network volume (or local path) with model files per worker/manifest.json.
+Populate a RunPod network volume with model files.
 
 Usage:
-  PYTHONPATH=  # N/A
   python worker/scripts/provision_volume.py
-  MANIFEST_PATH=/path/to/manifest.json python worker/scripts/provision_volume.py
-
-Requires: huggingface_hub, httpx
 
 Env:
-  HF_TOKEN — optional, for gated repos
-  VOLUME_ROOT — overrides manifest volume_root
+  HF_TOKEN       — optional, for gated repos
+  RUNPOD_VOLUME  — volume mount path (default: /runpod-volume)
 """
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 logger = logging.getLogger("provision_volume")
 
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
 
-def _script_dir() -> Path:
-    return Path(__file__).resolve().parent
+VOL               = Path(os.environ.get("RUNPOD_VOLUME", "/runpod-volume"))
+BASE_DIR          = VOL / "models"
+UNET_DIR          = BASE_DIR / "unet"
+VAE_DIR           = BASE_DIR / "vae"
+TEXT_ENCODER_DIR  = BASE_DIR / "text_encoders"
+LORA_DIR          = BASE_DIR / "loras"
+HF_HOME           = VOL / "huggingface-cache"
+HF_HUB_CACHE      = HF_HOME / "hub"
 
+# ---------------------------------------------------------------------------
+# Create directories
+# ---------------------------------------------------------------------------
 
-def _default_manifest_path() -> Path:
-    return _script_dir().parent / "manifest.json"
+for _d in [BASE_DIR, UNET_DIR, VAE_DIR, TEXT_ENCODER_DIR, LORA_DIR, HF_HOME, HF_HUB_CACHE]:
+    _d.mkdir(parents=True, exist_ok=True)
 
+# ---------------------------------------------------------------------------
+# HuggingFace cache configuration
+# Must be set before importing huggingface_hub so the library picks them up.
+# ---------------------------------------------------------------------------
 
-def _sha256_file(path: Path) -> str:
-    h = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
+os.environ["HF_HOME"]                  = str(HF_HOME)
+os.environ["HF_HUB_CACHE"]             = str(HF_HUB_CACHE)
+os.environ["HF_HUB_ENABLE_HF_TRANSFER"] = "1"   # requires: pip install hf_transfer
 
-
-def _download_url(url: str, dest: Path) -> None:
-    import httpx
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    partial = dest.with_suffix(dest.suffix + ".partial")
-    with httpx.Client(follow_redirects=True, timeout=None) as client:
-        with client.stream("GET", url, headers={"Accept": "*/*"}) as r:
-            r.raise_for_status()
-            with open(partial, "wb") as f:
-                for chunk in r.iter_bytes(chunk_size=1024 * 1024):
-                    f.write(chunk)
-    partial.replace(dest)
-    logger.info("Downloaded URL -> %s", dest)
-
-
-def _hf_file(repo: str, remote_path: str, dest: Path) -> None:
-    import shutil
-
-    from huggingface_hub import hf_hub_download
-
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    cached = hf_hub_download(
-        repo_id=repo,
-        filename=remote_path,
-        token=os.environ.get("HF_TOKEN"),
-    )
-    shutil.copy2(cached, dest)
-    logger.info("HF file %s/%s -> %s", repo, remote_path, dest)
+from huggingface_hub import hf_hub_download, snapshot_download  # noqa: E402
 
 
-def _hf_snapshot(repo: str, dest_dir: Path, exclude: list[str]) -> None:
-    from huggingface_hub import snapshot_download
-
-    dest_dir.mkdir(parents=True, exist_ok=True)
-    snapshot_download(
-        repo_id=repo,
-        local_dir=str(dest_dir),
-        ignore_patterns=exclude,
-        token=os.environ.get("HF_TOKEN"),
-    )
-    logger.info("HF snapshot %s -> %s", repo, dest_dir)
+def _exists_file(path: Path) -> bool:
+    if path.is_file():
+        logger.info("[skip] exists (%.1f MB): %s", path.stat().st_size / 1024 / 1024, path)
+        return True
+    return False
 
 
-def _process_entry(vol: Path, entry: dict[str, Any]) -> None:
-    dest_rel = entry["dest"]
-    dest = vol / dest_rel
-    source = entry["source"]
-    kind = source["kind"]
-    sha256_expect = entry.get("sha256")
-
-    if kind in ("hf_file", "url"):
-        if dest.exists() and dest.is_file():
-            if sha256_expect:
-                got = _sha256_file(dest)
-                if got.lower() == sha256_expect.lower():
-                    logger.info("[skip] OK sha256: %s", dest)
-                    return
-                logger.warning("Checksum mismatch, re-downloading: %s", dest)
-            else:
-                logger.info("[skip] exists: %s", dest)
-                return
-
-    if kind == "hf_file":
-        repo = source["repo"]
-        path = source["path"]
-        _hf_file(repo, path, dest)
-    elif kind == "url":
-        _download_url(source["url"], dest)
-    elif kind == "hf_snapshot":
-        repo = source["repo"]
-        exclude = source.get("exclude", [])
-        # If directory exists and non-empty, skip (idempotent for POC)
-        if dest.is_dir() and any(dest.iterdir()):
-            logger.info("[skip] snapshot dir non-empty: %s", dest)
-            return
-        _hf_snapshot(repo, dest, exclude)
-    else:
-        raise ValueError(f"Unknown source kind: {kind}")
-
-    if kind != "hf_snapshot" and sha256_expect and dest.is_file():
-        got = _sha256_file(dest)
-        if got.lower() != sha256_expect.lower():
-            raise RuntimeError(
-                f"sha256 mismatch for {dest}: expected {sha256_expect}, got {got}"
-            )
+def _exists_dir(path: Path) -> bool:
+    if path.is_dir() and any(path.iterdir()):
+        logger.info("[skip] dir non-empty: %s", path)
+        return True
+    return False
 
 
 def main() -> int:
-    manifest_path = Path(os.environ.get("MANIFEST_PATH", _default_manifest_path()))
-    if not manifest_path.exists():
-        logger.error("Manifest not found: %s", manifest_path)
-        return 1
+    token = os.environ.get("HF_TOKEN")
+    if token:
+        logger.info("HF_TOKEN detected — gated repos enabled")
 
-    with open(manifest_path, encoding="utf-8") as f:
-        manifest = json.load(f)
+    # -----------------------------------------------------------------------
+    # 1. Base Qwen Image Edit model snapshot
+    #    Stored flat (local_dir_use_symlinks=False) so the path is fixed and
+    #    the handler never needs to resolve a hash-based snapshot directory.
+    # -----------------------------------------------------------------------
+    snapshot_dest = BASE_DIR / "Qwen--Qwen-Image-Edit-2511"
+    if not _exists_dir(snapshot_dest):
+        logger.info("=== Downloading base Qwen model snapshot ===")
+        snapshot_download(
+            repo_id="Qwen/Qwen-Image-Edit-2511",
+            local_dir=str(snapshot_dest),
+            local_dir_use_symlinks=False,
+            # Skip large binary weights — they are downloaded individually below.
+            ignore_patterns=["*.safetensors", "*.bin", "*.gguf"],
+            token=token,
+        )
 
-    volume_root = Path(os.environ.get("VOLUME_ROOT", manifest.get("volume_root", "/runpod-volume")))
-    logger.info("Volume root: %s", volume_root)
-    volume_root.mkdir(parents=True, exist_ok=True)
+    # -----------------------------------------------------------------------
+    # 2. GGUF transformer
+    # -----------------------------------------------------------------------
+    gguf_dest = UNET_DIR / "qwen-image-edit-2511-Q3_K_L.gguf"
+    if not _exists_file(gguf_dest):
+        logger.info("=== Downloading GGUF transformer ===")
+        hf_hub_download(
+            repo_id="unsloth/Qwen-Image-Edit-2511-GGUF",
+            filename="qwen-image-edit-2511-Q3_K_L.gguf",
+            local_dir=str(UNET_DIR),
+            token=token,
+        )
 
-    files = manifest.get("files", [])
-    for i, entry in enumerate(files):
-        logger.info("--- [%d/%d] %s ---", i + 1, len(files), entry.get("dest"))
-        try:
-            _process_entry(volume_root, entry)
-        except Exception as e:
-            logger.exception("Failed on %s: %s", entry.get("dest"), e)
-            return 1
+    # -----------------------------------------------------------------------
+    # 3. VAE
+    #    The repo path is split_files/vae/<name>, so hf_hub_download places
+    #    the file at VAE_DIR/split_files/vae/<name>.
+    # -----------------------------------------------------------------------
+    vae_dest = VAE_DIR / "split_files" / "vae" / "qwen_image_vae.safetensors"
+    if not _exists_file(vae_dest):
+        logger.info("=== Downloading VAE ===")
+        hf_hub_download(
+            repo_id="Comfy-Org/Qwen-Image_ComfyUI",
+            filename="split_files/vae/qwen_image_vae.safetensors",
+            local_dir=str(VAE_DIR),
+            token=token,
+        )
 
-    logger.info("Provision complete.")
+    # -----------------------------------------------------------------------
+    # 4. Text encoder
+    #    Flat filename — file lands directly at TEXT_ENCODER_DIR/<name>.
+    # -----------------------------------------------------------------------
+    te_dest = TEXT_ENCODER_DIR / "qwen_2.5_vl_7b_fp8_scaled.safetensors"
+    if not _exists_file(te_dest):
+        logger.info("=== Downloading text encoder ===")
+        hf_hub_download(
+            repo_id="f5aiteam/CLIP",
+            filename="qwen_2.5_vl_7b_fp8_scaled.safetensors",
+            local_dir=str(TEXT_ENCODER_DIR),
+            token=token,
+        )
+
+    # -----------------------------------------------------------------------
+    # 5. Lightning LoRA
+    # -----------------------------------------------------------------------
+    lightning_dest = LORA_DIR / "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors"
+    if not _exists_file(lightning_dest):
+        logger.info("=== Downloading Lightning LoRA ===")
+        hf_hub_download(
+            repo_id="fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA",
+            filename="Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors",
+            local_dir=str(LORA_DIR),
+            token=token,
+        )
+
+    # -----------------------------------------------------------------------
+    # 6. Multiple Angles LoRA
+    # -----------------------------------------------------------------------
+    angles_dest = LORA_DIR / "qwen-image-edit-2511-multiple-angles-lora.safetensors"
+    if not _exists_file(angles_dest):
+        logger.info("=== Downloading Multiple Angles LoRA ===")
+        hf_hub_download(
+            repo_id="fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA",
+            filename="qwen-image-edit-2511-multiple-angles-lora.safetensors",
+            local_dir=str(LORA_DIR),
+            token=token,
+        )
+
+    logger.info("✅ Provisioning complete")
     return 0
 
 

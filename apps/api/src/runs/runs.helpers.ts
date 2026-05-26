@@ -1,4 +1,4 @@
-import type { Run, RunStatus } from '@prisma/client';
+import { RunStatus, type Run } from '@prisma/client';
 
 const TERMINAL = new Set<RunStatus>([
   RunStatus.SUCCEEDED,
