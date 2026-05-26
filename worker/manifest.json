@@ -35,8 +35,9 @@
     {
       "dest": "models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors",
       "source": {
-        "kind": "url",
-        "url": "https://huggingface.co/fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA/resolve/main/qwen-image-edit-2511-multiple-angles-lora.safetensors"
+        "kind": "hf_file",
+        "repo": "fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA",
+        "path": "qwen-image-edit-2511-multiple-angles-lora.safetensors"
       }
     },
     {
