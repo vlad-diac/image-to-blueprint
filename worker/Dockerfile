@@ -1,5 +1,5 @@
 # PyTorch CUDA image (adjust tag if your RunPod GPUs need a specific CUDA toolkit).
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+FROM pytorch/pytorch:2.7.0-cuda12.8-cudnn9-runtime
 
 WORKDIR /app
 

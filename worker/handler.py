@@ -50,11 +50,9 @@ def _build_pipeline() -> QwenEditPipeline:
     offload = os.environ.get("ENABLE_OFFLOAD", "").lower() in ("1", "true", "yes")
     compile_te = os.environ.get("COMPILE_TEXT_ENCODER", "").lower() in ("1", "true", "yes")
 
-    # hf_hub_download preserves the repo's subdirectory structure under local_dir,
-    # so the VAE (split_files/vae/…) is nested one level deeper than its parent dir.
-    transformer_path = _check(MODELS / "unet"          / "qwen-image-edit-2511-Q3_K_L.gguf")
-    vae_path         = _check(MODELS / "vae"            / "split_files" / "vae"           / "qwen_image_vae.safetensors")
-    te_path          = _check(MODELS / "text_encoders"  / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
+    transformer_path = _check(MODELS / "unet"         / "qwen-image-edit-2511-Q3_K_L.gguf")
+    vae_path         = _check(MODELS / "vae"          / "qwen_image_vae.safetensors")
+    te_path          = _check(MODELS / "text_encoders" / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
     snapshot_path    = _check(MODELS / "Qwen--Qwen-Image-Edit-2511")
     lora_angles      = _check(MODELS / "loras"          / "qwen-image-edit-2511-multiple-angles-lora.safetensors")
     lora_lightning   = _check(MODELS / "loras"          / "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors")

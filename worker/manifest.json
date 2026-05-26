@@ -28,8 +28,8 @@
       "dest": "models/loras/Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors",
       "source": {
         "kind": "hf_file",
-        "repo": "fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA",
-        "path": "Qwen-Image-Edit-Lightning-4steps-V1.0-bf16.safetensors"
+        "repo": "lightx2v/Qwen-Image-Edit-2511-Lightning",
+        "path": "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors"
       }
     },
     {
