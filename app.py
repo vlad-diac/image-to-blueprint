@@ -407,7 +407,7 @@ def run_pipeline(
             cfg=float(cfg),
             seed=seed,
             denoise=float(denoise),
-        )
+        )[0]
 
         OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

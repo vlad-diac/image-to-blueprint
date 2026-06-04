@@ -25,7 +25,7 @@ Typical usage:
         .add_lora("models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
                   weight=1.0, name="lightning")
     )
-    out = pipe.run(image, positive_prompt=prompt, steps=4, cfg=1.0)
+    out = pipe.run(image, positive_prompt=prompt, steps=4, cfg=1.0)[0]
 """
 
 from __future__ import annotations
@@ -210,48 +210,89 @@ class QwenEditPipeline:
         cfg: float = 1.0,
         seed: Optional[int] = None,
         denoise: float = 1.0,
-    ) -> Image.Image:
+        num_images: int = 1,
+        seeds: Optional[list[int]] = None,
+    ) -> list[Image.Image]:
         """
-        Run a single edit pass and return the output PIL image.
+        Run one or more edit passes and return PIL images.
+
+        Uses the same prompt/steps/cfg for every image; each output uses its own
+        seed (from ``seeds``, or ``seed+i``, or independently random).
 
         Args:
-            image:           Input PIL image (RGB).
-            positive_prompt: Edit instruction.
-            negative_prompt: Negative prompt — only active when cfg > 1.0.
-            steps:           Number of denoising steps.
-            cfg:             True-CFG scale. Values ≤ 1.0 disable CFG guidance.
-            seed:            RNG seed. None → random.
-            denoise:         Denoising strength (1.0 = full denoise). Currently
-                             only used for logging; diffusers' QwenImageEditPlus
-                             pipeline starts from full noise.
+            num_images:      How many variants to produce (typically 3 on RunPod).
+            seeds:           Explicit RNG seeds, length must equal ``num_images``
+                             when provided.
+            seed:            Base RNG seed when ``seeds`` is omitted; derives
+                             ``seed, seed+1, …`` unless ``seed`` is None (then
+                             each image gets an independent random seed).
         """
         if self._pipe is None:
             raise RuntimeError("Pipeline not loaded. Call .load() before .run().")
 
         self._flush_loras()
 
-        if seed is None:
-            seed = random.randint(0, 2**32 - 1)
+        n = max(1, int(num_images))
+        if seeds is not None:
+            if len(seeds) != n:
+                raise ValueError(f"seeds length {len(seeds)} must match num_images={n}")
+            seeds_list = list(seeds)
+        elif seed is not None:
+            base = int(seed)
+            seeds_list = [base + i for i in range(n)]
+        else:
+            seeds_list = [random.randint(0, 2**32 - 1) for _ in range(n)]
 
         generator_device = "cpu" if self._device == "mps" else self._device
-        generator = torch.Generator(device=generator_device).manual_seed(seed)
-
         effective_neg = negative_prompt if cfg > 1.0 else " "
 
         logger.info(
-            "Inference: steps=%d  cfg=%.2f  denoise=%.2f  seed=%d  device=%s",
-            steps, cfg, denoise, seed, self._device,
+            "Inference: num_images=%d  steps=%d  cfg=%.2f  denoise=%.2f  seeds=%s  device=%s",
+            n,
+            steps,
+            cfg,
+            denoise,
+            seeds_list,
+            self._device,
         )
 
-        with torch.inference_mode():
-            result = self._pipe(
-                image=image,
-                prompt=positive_prompt,
-                negative_prompt=effective_neg,
-                true_cfg_scale=cfg,
-                num_inference_steps=steps,
-                guidance_scale=None,
-                generator=generator,
-            )
+        def _call_single(s: int) -> Image.Image:
+            gen = torch.Generator(device=generator_device).manual_seed(int(s))
+            with torch.inference_mode():
+                one = self._pipe(
+                    image=image,
+                    prompt=positive_prompt,
+                    negative_prompt=effective_neg,
+                    true_cfg_scale=cfg,
+                    num_inference_steps=steps,
+                    guidance_scale=None,
+                    generator=gen,
+                )
+            return one.images[0]
 
-        return result.images[0]
+        if n == 1:
+            return [_call_single(seeds_list[0])]
+
+        generators = [
+            torch.Generator(device=generator_device).manual_seed(int(s))
+            for s in seeds_list
+        ]
+        try:
+            with torch.inference_mode():
+                result = self._pipe(
+                    image=image,
+                    prompt=positive_prompt,
+                    negative_prompt=effective_neg,
+                    true_cfg_scale=cfg,
+                    num_inference_steps=steps,
+                    guidance_scale=None,
+                    generator=generators,
+                    num_images_per_prompt=n,
+                )
+            return list(result.images)
+        except Exception as exc:
+            logger.warning(
+                "Batched num_images_per_prompt failed (%s); falling back to sequential runs.",
+                exc,
+            )
+            return [_call_single(s) for s in seeds_list]

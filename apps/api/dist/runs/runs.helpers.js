@@ -17,7 +17,16 @@ function toIso(d) {
         return null;
     return d.toISOString();
 }
+function metaRow(o) {
+    return {
+        index: o.index,
+        seed: o.seed !== null ? o.seed.toString() : null,
+        width: o.width ?? null,
+        height: o.height ?? null,
+    };
+}
 function serializeRun(run) {
+    const outs = [...(run.outputs ?? [])].sort((a, b) => a.index - b.index);
     return {
         id: run.id,
         status: run.status,
@@ -25,6 +34,7 @@ function serializeRun(run) {
         negativePrompt: run.negativePrompt,
         steps: run.steps,
         cfg: run.cfg,
+        numImages: run.numImages,
         seed: run.seed !== null ? run.seed.toString() : null,
         runpodJobId: run.runpodJobId,
         workerJobDir: run.workerJobDir,
@@ -33,6 +43,7 @@ function serializeRun(run) {
         executionMs: run.executionMs ?? null,
         errorMessage: run.errorMessage,
         rawStatus: run.rawStatus,
+        outputs: outs.map(metaRow),
         startedAt: toIso(run.startedAt),
         completedAt: toIso(run.completedAt),
         createdAt: run.createdAt.toISOString(),

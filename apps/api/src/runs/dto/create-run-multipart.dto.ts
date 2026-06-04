@@ -33,4 +33,11 @@ export class CreateRunMultipartDto {
   @Type(() => Number)
   @IsNumber()
   seed?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(4)
+  numImages?: number;
 }

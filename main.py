@@ -257,7 +257,7 @@ def main(argv: list[str] | None = None) -> None:
         cfg=cfg_val,
         seed=seed,
         denoise=denoise,
-    )
+    )[0]
 
     # ---- save ----
     output_path.parent.mkdir(parents=True, exist_ok=True)

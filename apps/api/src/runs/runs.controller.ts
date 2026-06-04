@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -7,12 +8,13 @@ import {
   Param,
   Post,
   Query,
+  Res,
   StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import type { Express } from 'express';
+import type { Express, Response } from 'express';
 import { RunsService } from './runs.service';
 import { CreateRunMultipartDto } from './dto/create-run-multipart.dto';
 
@@ -38,6 +40,7 @@ export class RunsController {
       steps: dto.steps,
       cfg: dto.cfg,
       seed: dto.seed,
+      numImages: dto.numImages,
     });
   }
 
@@ -53,9 +56,22 @@ export class RunsController {
     return new StreamableFile(buf, { type: 'image/png' });
   }
 
+  /** Redirect to index 0 for callers that still use the legacy URL. */
   @Get(':id/output.png')
-  async output(@Param('id') id: string): Promise<StreamableFile> {
-    const buf = await this.runs.getOutputBytes(id);
+  legacyOutput(@Param('id') _id: string, @Res() res: Response): void {
+    res.redirect(302, `outputs/0.png`);
+  }
+
+  @Get(':id/outputs/:file')
+  async outputAt(
+    @Param('id') id: string,
+    @Param('file') file: string,
+  ): Promise<StreamableFile> {
+    const m = /^(\d+)\.png$/i.exec(file);
+    if (!m)
+      throw new BadRequestException('Outputs path must look like outputs/<index>.png');
+    const index = Number(m[1]);
+    const buf = await this.runs.getOutputBytesAt(id, index);
     if (!buf) throw new NotFoundException('Output not ready');
     return new StreamableFile(buf, { type: 'image/png' });
   }

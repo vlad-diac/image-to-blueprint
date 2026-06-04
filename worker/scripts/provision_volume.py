@@ -98,6 +98,7 @@ def main() -> int:
             repo_id="unsloth/Qwen-Image-Edit-2511-GGUF",
             filename="qwen-image-edit-2511-Q3_K_L.gguf",
             local_dir=str(UNET_DIR),
+            local_dir_use_symlinks=False,
             token=token,
         )
 
@@ -113,6 +114,7 @@ def main() -> int:
             repo_id="Comfy-Org/Qwen-Image_ComfyUI",
             filename="split_files/vae/qwen_image_vae.safetensors",
             local_dir=str(VAE_DIR),
+            local_dir_use_symlinks=False,
             token=token,
         )
 
@@ -127,6 +129,7 @@ def main() -> int:
             repo_id="f5aiteam/CLIP",
             filename="qwen_2.5_vl_7b_fp8_scaled.safetensors",
             local_dir=str(TEXT_ENCODER_DIR),
+            local_dir_use_symlinks=False,
             token=token,
         )
 
@@ -140,6 +143,7 @@ def main() -> int:
             repo_id="lightx2v/Qwen-Image-Edit-2511-Lightning",
             filename="Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
             local_dir=str(LORA_DIR),
+            local_dir_use_symlinks=False,
             token=token,
         )
 
@@ -153,6 +157,7 @@ def main() -> int:
             repo_id="fal/Qwen-Image-Edit-2511-Multiple-Angles-LoRA",
             filename="qwen-image-edit-2511-multiple-angles-lora.safetensors",
             local_dir=str(LORA_DIR),
+            local_dir_use_symlinks=False,
             token=token,
         )
 

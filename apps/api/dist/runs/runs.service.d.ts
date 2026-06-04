@@ -9,7 +9,7 @@ export declare class RunsService {
     listRecent(limit?: number): Promise<RunSerializable[]>;
     findOne(id: string, refresh?: boolean): Promise<RunSerializable>;
     getInputBytes(id: string): Promise<Buffer>;
-    getOutputBytes(id: string): Promise<Buffer | null>;
+    getOutputBytesAt(runId: string, index: number): Promise<Buffer | null>;
     createWithImage(buffer: Buffer | undefined, fields: CreateRunFields): Promise<RunSerializable>;
     cancel(id: string): Promise<RunSerializable>;
     reconcile(runId: string, jobId: string): Promise<void>;

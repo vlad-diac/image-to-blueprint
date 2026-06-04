@@ -6,6 +6,7 @@ import base64
 import io
 import logging
 import os
+import random
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -50,8 +51,10 @@ def _build_pipeline() -> QwenEditPipeline:
     offload = os.environ.get("ENABLE_OFFLOAD", "").lower() in ("1", "true", "yes")
     compile_te = os.environ.get("COMPILE_TEXT_ENCODER", "").lower() in ("1", "true", "yes")
 
+    # hf_hub_download preserves the repo's subdirectory structure under local_dir,
+    # so the VAE (repo path: split_files/vae/…) is nested under its parent dir.
     transformer_path = _check(MODELS / "unet"         / "qwen-image-edit-2511-Q3_K_L.gguf")
-    vae_path         = _check(MODELS / "vae"          / "qwen_image_vae.safetensors")
+    vae_path         = _check(MODELS / "vae"          / "split_files" / "vae" / "qwen_image_vae.safetensors")
     te_path          = _check(MODELS / "text_encoders" / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
     snapshot_path    = _check(MODELS / "Qwen--Qwen-Image-Edit-2511")
     lora_angles      = _check(MODELS / "loras"          / "qwen-image-edit-2511-multiple-angles-lora.safetensors")
@@ -89,10 +92,12 @@ logger.info("Pipeline ready.")
 
 
 def handler(event: dict) -> dict:
+
     inp = event.get("input") or {}
     job_id = event.get("id")
     if not job_id:
         import uuid
+
         job_id = str(uuid.uuid4())
 
     raw_b64 = inp.get("image_b64")
@@ -106,36 +111,51 @@ def handler(event: dict) -> dict:
         raise ValueError("input.positive_prompt is required")
 
     negative = inp.get("negative_prompt") or ""
-    steps    = int(inp.get("steps", 4))
-    cfg      = float(inp.get("cfg", 1.0))
-    seed     = inp.get("seed")
-    if seed is not None:
-        seed = int(seed)
+    steps = int(inp.get("steps", 4))
+    cfg = float(inp.get("cfg", 1.0))
+    num_images = max(1, min(4, int(inp.get("num_images", 3))))
 
-    out = PIPE.run(
+    seed_raw = inp.get("seed")
+    if seed_raw is not None:
+        base = int(seed_raw)
+        seeds_list = [base + i for i in range(num_images)]
+    else:
+        seeds_list = [random.randint(0, 2**32 - 1) for _ in range(num_images)]
+
+    imgs = PIPE.run(
         image=img,
         positive_prompt=positive,
         negative_prompt=negative,
         steps=steps,
         cfg=cfg,
-        seed=seed,
+        num_images=num_images,
+        seeds=seeds_list,
     )
 
-    job_dir  = VOL / "jobs" / str(job_id)
+    job_dir = VOL / "jobs" / str(job_id)
     job_dir.mkdir(parents=True, exist_ok=True)
-    out_path = job_dir / "output.png"
-    out.save(out_path)
 
-    buf = io.BytesIO()
-    out.save(buf, format="PNG")
-    image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+    payload_images = []
+    for i, out in enumerate(imgs):
+        fname = job_dir / f"output_{i}.png"
+        out.save(fname)
+        buf = io.BytesIO()
+        out.save(buf, format="PNG")
+        image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        payload_images.append({
+            "index": i,
+            "seed": int(seeds_list[i]),
+            "image_b64": image_b64,
+        })
 
+    first = imgs[0]
     rel = job_dir.relative_to(VOL)
     return {
-        "image_b64": image_b64,
         "job_dir": str(rel).replace("\\", "/"),
-        "width": out.width,
-        "height": out.height,
+        "width": first.width,
+        "height": first.height,
+        "num_images": num_images,
+        "images": payload_images,
     }
 
 

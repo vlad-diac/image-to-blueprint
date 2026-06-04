@@ -4,4 +4,5 @@ export declare class CreateRunMultipartDto {
     steps?: number;
     cfg?: number;
     seed?: number;
+    numImages?: number;
 }

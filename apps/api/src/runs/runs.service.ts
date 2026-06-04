@@ -4,7 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma, RunStatus, type Run } from '@prisma/client';
+import { Prisma, RunStatus } from '@prisma/client';
 import { RunpodService } from '../runpod/runpod.service';
 import type { RunpodHandlerOutput, RunpodJobStatus } from '../runpod/runpod.types';
 import { PrismaService } from '../prisma/prisma.service';
@@ -15,12 +15,15 @@ import {
   type RunSerializable,
 } from './runs.helpers';
 
-type RunListRow = Omit<Run, 'inputImage' | 'outputImage'>;
-
-function toSerializablePartial(r: RunListRow): RunSerializable {
-  const full = r as unknown as Run;
-  return serializeRun(full);
-}
+const OUTPUT_META_SELECT = {
+  select: {
+    index: true,
+    seed: true,
+    width: true,
+    height: true,
+  },
+  orderBy: { index: 'asc' as const },
+};
 
 @Injectable()
 export class RunsService {
@@ -42,6 +45,7 @@ export class RunsService {
         negativePrompt: true,
         steps: true,
         cfg: true,
+        numImages: true,
         seed: true,
         runpodJobId: true,
         workerJobDir: true,
@@ -54,20 +58,25 @@ export class RunsService {
         completedAt: true,
         createdAt: true,
         updatedAt: true,
+        outputs: OUTPUT_META_SELECT,
       },
     });
-    return rows.map(toSerializablePartial);
+    return rows.map((r) => serializeRun(r));
   }
 
   async findOne(id: string, refresh = true): Promise<RunSerializable> {
     let run = await this.prisma.run.findUnique({
       where: { id },
+      include: { outputs: OUTPUT_META_SELECT },
     });
     if (!run) throw new NotFoundException(`Run ${id} not found`);
 
     if (refresh && !isTerminalRunStatus(run.status) && run.runpodJobId) {
       await this.reconcile(run.id, run.runpodJobId);
-      run = await this.prisma.run.findUniqueOrThrow({ where: { id } });
+      run = await this.prisma.run.findUniqueOrThrow({
+        where: { id },
+        include: { outputs: OUTPUT_META_SELECT },
+      });
     }
     return serializeRun(run);
   }
@@ -81,14 +90,13 @@ export class RunsService {
     return Buffer.from(row.inputImage);
   }
 
-  async getOutputBytes(id: string): Promise<Buffer | null> {
-    const row = await this.prisma.run.findUnique({
-      where: { id },
-      select: { status: true, outputImage: true },
+  async getOutputBytesAt(runId: string, index: number): Promise<Buffer | null> {
+    const row = await this.prisma.runImage.findUnique({
+      where: { runId_index: { runId, index } },
+      include: { run: { select: { status: true } } },
     });
-    if (!row) throw new NotFoundException();
-    if (!row.outputImage || row.status !== RunStatus.SUCCEEDED) return null;
-    return Buffer.from(row.outputImage);
+    if (!row?.run || row.run.status !== RunStatus.SUCCEEDED) return null;
+    return Buffer.from(row.bytes);
   }
 
   async createWithImage(
@@ -104,6 +112,10 @@ export class RunsService {
     }
     const steps = fields.steps ?? 4;
     const cfg = fields.cfg ?? 1.0;
+    const numImages = Math.min(
+      Math.max(fields.numImages ?? 3, 1),
+      4,
+    );
     if (steps < 1 || steps > 100) {
       throw new BadRequestException('steps must be between 1 and 100');
     }
@@ -119,6 +131,7 @@ export class RunsService {
         negativePrompt: (fields.negativePrompt ?? '').trim(),
         steps,
         cfg,
+        numImages,
         seed,
         inputImage: buffer,
       },
@@ -132,6 +145,7 @@ export class RunsService {
         negative_prompt: fields.negativePrompt ?? '',
         steps,
         cfg,
+        num_images: numImages,
         seed:
           fields.seed !== undefined && fields.seed !== null
             ? Math.trunc(Number(fields.seed))
@@ -158,12 +172,18 @@ export class RunsService {
       });
     }
 
-    const finalRun = await this.prisma.run.findUniqueOrThrow({ where: { id: run.id } });
+    const finalRun = await this.prisma.run.findUniqueOrThrow({
+      where: { id: run.id },
+      include: { outputs: OUTPUT_META_SELECT },
+    });
     return serializeRun(finalRun);
   }
 
   async cancel(id: string): Promise<RunSerializable> {
-    const run = await this.prisma.run.findUnique({ where: { id } });
+    const run = await this.prisma.run.findUnique({
+      where: { id },
+      include: { outputs: OUTPUT_META_SELECT },
+    });
     if (!run) throw new NotFoundException();
     if (!run.runpodJobId) throw new BadRequestException('No RunPod job id');
     if (isTerminalRunStatus(run.status)) {
@@ -178,7 +198,10 @@ export class RunsService {
     if (run.runpodJobId) {
       await this.reconcile(run.id, run.runpodJobId);
     }
-    const updated = await this.prisma.run.findUniqueOrThrow({ where: { id } });
+    const updated = await this.prisma.run.findUniqueOrThrow({
+      where: { id },
+      include: { outputs: OUTPUT_META_SELECT },
+    });
     return serializeRun(updated);
   }
 
@@ -263,37 +286,79 @@ export class RunsService {
 
     if (st.status === 'COMPLETED') {
       const parsed = coerceHandlerOutput(st.output);
-      let outputBuf: Buffer | undefined;
-      if (parsed?.image_b64) {
-        try {
-          outputBuf = Buffer.from(parsed.image_b64, 'base64');
-        } catch {
-          outputBuf = undefined;
-        }
-      }
       const duration =
         delayMs !== undefined || executionMs !== undefined
           ? (delayMs ?? 0) + (executionMs ?? 0)
           : undefined;
 
-      await this.prisma.run.updateMany({
-        where: {
-          id: runId,
-          status: {
-            in: [RunStatus.QUEUED, RunStatus.IN_QUEUE, RunStatus.IN_PROGRESS],
+      const rows = extractOutputImageRows(parsed);
+      if (!rows.length) {
+        await this.prisma.run.updateMany({
+          where: {
+            id: runId,
+            status: {
+              in: [RunStatus.QUEUED, RunStatus.IN_QUEUE, RunStatus.IN_PROGRESS],
+            },
           },
-        },
-        data: {
-          status: RunStatus.SUCCEEDED,
-          outputImage: outputBuf,
-          workerJobDir: parsed?.job_dir ?? null,
-          durationMs: duration ?? null,
-          delayMs,
-          executionMs,
-          rawStatus: raw,
-          completedAt: new Date(),
-          errorMessage: null,
-        },
+          data: {
+            status: RunStatus.FAILED,
+            errorMessage: 'RunPod completed but no decodeable images in output',
+            rawStatus: raw,
+            completedAt: new Date(),
+          },
+        });
+        await this.maybeSetStartedAt(runId);
+        return;
+      }
+
+      await this.prisma.$transaction(async (tx) => {
+        const alive = await tx.run.findFirst({
+          where: {
+            id: runId,
+            status: {
+              in: [RunStatus.QUEUED, RunStatus.IN_QUEUE, RunStatus.IN_PROGRESS],
+            },
+          },
+        });
+        if (!alive) return;
+
+        await tx.runImage.deleteMany({ where: { runId } });
+
+        const sorted = [...rows].sort((a, b) => a.index - b.index);
+        for (const r of sorted) {
+          await tx.runImage.create({
+            data: {
+              runId,
+              index: r.index,
+              bytes: r.buf,
+              seed: r.seed ?? null,
+              width: r.width,
+              height: r.height,
+            },
+          });
+        }
+
+        const numStored = sorted.length;
+
+        await tx.run.updateMany({
+          where: {
+            id: runId,
+            status: {
+              in: [RunStatus.QUEUED, RunStatus.IN_QUEUE, RunStatus.IN_PROGRESS],
+            },
+          },
+          data: {
+            status: RunStatus.SUCCEEDED,
+            numImages: numStored,
+            workerJobDir: parsed?.job_dir ?? null,
+            durationMs: duration ?? null,
+            delayMs,
+            executionMs,
+            rawStatus: raw,
+            completedAt: new Date(),
+            errorMessage: null,
+          },
+        });
       });
       await this.maybeSetStartedAt(runId);
       return;
@@ -374,4 +439,73 @@ function coerceHandlerOutput(raw: unknown): RunpodHandlerOutput | null {
     return coerceHandlerOutput(o.output);
   }
   return raw as RunpodHandlerOutput;
+}
+
+interface DecodedImgRow {
+  index: number;
+  buf: Buffer;
+  seed: bigint | undefined;
+  width: number | null;
+  height: number | null;
+}
+
+/** Decode RunPod worker output → DB rows for RunImage (no inserts here). */
+function extractOutputImageRows(parsed: RunpodHandlerOutput | null): DecodedImgRow[] {
+  if (!parsed) return [];
+  const w = parsed.width ?? null;
+  const h = parsed.height ?? null;
+  const list = parsed.images;
+  if (list?.length) {
+    const out: DecodedImgRow[] = [];
+    for (const im of [...list].sort((a, b) => (a.index ?? 0) - (b.index ?? 0))) {
+      if (
+        typeof im.image_b64 !== 'string' ||
+        typeof im.index !== 'number' ||
+        im.index < 0
+      ) {
+        continue;
+      }
+      let buf: Buffer;
+      try {
+        buf = Buffer.from(im.image_b64, 'base64');
+      } catch {
+        continue;
+      }
+      if (!buf.length) continue;
+      let seed: bigint | undefined;
+      if (im.seed !== undefined && im.seed !== null) {
+        try {
+          seed = BigInt(Math.trunc(Number(im.seed)));
+        } catch {
+          seed = undefined;
+        }
+      }
+      out.push({
+        index: im.index,
+        buf,
+        seed,
+        width: w,
+        height: h,
+      });
+    }
+    return out;
+  }
+  if (parsed.image_b64) {
+    try {
+      const buf = Buffer.from(parsed.image_b64, 'base64');
+      if (!buf.length) return [];
+      return [
+        {
+          index: 0,
+          buf,
+          seed: undefined,
+          width: w,
+          height: h,
+        },
+      ];
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }

@@ -1,5 +1,6 @@
-import { RunStatus, type Run } from '@prisma/client';
+import { RunStatus, type Run, type RunImage } from '@prisma/client';
 export declare function isTerminalRunStatus(s: RunStatus): boolean;
+export type RunOutputsMetaRow = Pick<RunImage, 'index' | 'seed' | 'width' | 'height'>;
 export interface RunSerializable {
     id: string;
     status: Run['status'];
@@ -7,6 +8,7 @@ export interface RunSerializable {
     negativePrompt: string;
     steps: number;
     cfg: number;
+    numImages: number;
     seed: string | null;
     runpodJobId: string | null;
     workerJobDir: string | null;
@@ -15,16 +17,26 @@ export interface RunSerializable {
     executionMs: number | null;
     errorMessage: string | null;
     rawStatus: unknown;
+    outputs: Array<{
+        index: number;
+        seed: string | null;
+        width: number | null;
+        height: number | null;
+    }>;
     startedAt: string | null;
     completedAt: string | null;
     createdAt: string;
     updatedAt: string;
 }
-export declare function serializeRun(run: Run): RunSerializable;
+export type SerializedRunPayload = Omit<Run, 'inputImage'> & {
+    outputs?: RunOutputsMetaRow[];
+};
+export declare function serializeRun(run: SerializedRunPayload): RunSerializable;
 export interface CreateRunFields {
     positivePrompt: string;
     negativePrompt?: string;
     steps?: number;
     cfg?: number;
     seed?: number;
+    numImages?: number;
 }

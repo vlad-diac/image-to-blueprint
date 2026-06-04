@@ -32,6 +32,7 @@ let RunsController = class RunsController {
             steps: dto.steps,
             cfg: dto.cfg,
             seed: dto.seed,
+            numImages: dto.numImages,
         });
     }
     async cancel(id) {
@@ -41,8 +42,15 @@ let RunsController = class RunsController {
         const buf = await this.runs.getInputBytes(id);
         return new common_1.StreamableFile(buf, { type: 'image/png' });
     }
-    async output(id) {
-        const buf = await this.runs.getOutputBytes(id);
+    legacyOutput(_id, res) {
+        res.redirect(302, `outputs/0.png`);
+    }
+    async outputAt(id, file) {
+        const m = /^(\d+)\.png$/i.exec(file);
+        if (!m)
+            throw new common_1.BadRequestException('Outputs path must look like outputs/<index>.png');
+        const index = Number(m[1]);
+        const buf = await this.runs.getOutputBytesAt(id, index);
         if (!buf)
             throw new common_1.NotFoundException('Output not ready');
         return new common_1.StreamableFile(buf, { type: 'image/png' });
@@ -86,10 +94,19 @@ __decorate([
 __decorate([
     (0, common_1.Get)(':id/output.png'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Res)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], RunsController.prototype, "legacyOutput", null);
+__decorate([
+    (0, common_1.Get)(':id/outputs/:file'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('file')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
-], RunsController.prototype, "output", null);
+], RunsController.prototype, "outputAt", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

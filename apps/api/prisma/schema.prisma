@@ -18,26 +18,54 @@ enum RunStatus {
 }
 
 model Run {
-  id            String    @id @default(uuid())
-  status        RunStatus @default(QUEUED)
-  positivePrompt String   @db.Text
-  negativePrompt String   @default("") @db.Text
-  steps         Int       @default(4)
-  cfg           Float     @default(1.0)
-  seed          BigInt?
-  inputImage    Bytes
-  outputImage   Bytes?
-  runpodJobId   String?   @unique
-  workerJobDir  String?
-  durationMs    Int?
-  delayMs       Int?
-  executionMs   Int?
-  errorMessage  String?   @db.Text
-  rawStatus     Json?
-  startedAt     DateTime?
-  completedAt   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  status         RunStatus @default(QUEUED)
+  positivePrompt String    @db.Text
+  negativePrompt String    @default("") @db.Text
+  steps          Int       @default(4)
+  cfg            Float     @default(1.0)
+  seed           BigInt?
+  numImages      Int       @default(3)
+  inputImage     Bytes
+  runpodJobId    String?   @unique
+  workerJobDir   String?
+  durationMs     Int?
+  delayMs        Int?
+  executionMs    Int?
+  errorMessage   String?   @db.Text
+  rawStatus      Json?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  outputs        RunImage[]
 
   @@index([status, updatedAt])
+}
+
+model RunImage {
+  id        String   @id @default(uuid())
+  runId     String
+  index     Int
+  bytes     Bytes
+  seed      BigInt?
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now())
+  run       Run      @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, index])
+  @@index([runId])
+}
+
+/// Singleton row id "default"; server-side generation preset.
+model RunConfiguration {
+  id               String   @id @default("default")
+  steps            Int      @default(4)
+  cfg              Float    @default(1.0)
+  positivePrompt   String   @db.Text
+  negativePrompt   String   @default("") @db.Text
+  numImages        Int      @default(3)
+  useLightningLora Boolean  @default(true)
+  updatedAt        DateTime @updatedAt
 }

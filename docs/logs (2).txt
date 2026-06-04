@@ -1,0 +1,54 @@
+2026-05-26T06:47:56.906768869Z handler.py          :88   2026-05-26 06:47:56,906 Loading pipeline (cold start)…
+2026-05-26T06:47:56.915308815Z handler.py          :42   2026-05-26 06:47:56,915 ✓ found  /runpod-volume/models/unet/qwen-image-edit-2511-Q3_K_L.gguf  (10091.2 MB)
+2026-05-26T06:47:56.923587894Z handler.py          :42   2026-05-26 06:47:56,923 ✓ found  /runpod-volume/models/vae/split_files/vae/qwen_image_vae.safetensors  (242.0 MB)
+2026-05-26T06:47:56.928761256Z handler.py          :42   2026-05-26 06:47:56,928 ✓ found  /runpod-volume/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors  (8949.9 MB)
+2026-05-26T06:47:56.929974895Z handler.py          :42   2026-05-26 06:47:56,929 ✓ found  /runpod-volume/models/Qwen--Qwen-Image-Edit-2511
+2026-05-26T06:47:56.935068849Z handler.py          :42   2026-05-26 06:47:56,935 ✓ found  /runpod-volume/models/loras/qwen-image-edit-2511-multiple-angles-lora.safetensors  (281.5 MB)
+2026-05-26T06:47:56.939051074Z handler.py          :42   2026-05-26 06:47:56,939 ✓ found  /runpod-volume/models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors  (810.2 MB)
+2026-05-26T06:47:56.940422509Z model_utils.py      :103  2026-05-26 06:47:56,940 Config source: local snapshot /runpod-volume/models/Qwen--Qwen-Image-Edit-2511
+2026-05-26T06:47:56.941683776Z model_utils.py      :160  2026-05-26 06:47:56,941 Transformer source: GGUF /runpod-volume/models/unet/qwen-image-edit-2511-Q3_K_L.gguf
+2026-05-26T06:48:31.729365169Z Some weights of the model checkpoint were not used when initializing QwenImageTransformer2DModel:
+2026-05-26T06:48:31.729407148Z  ['__index_timestep_zero__']
+2026-05-26T06:48:31.751791939Z Attention backends are an experimental feature and the API may be subject to change.
+2026-05-26T06:48:31.753386921Z model_utils.py      :184  2026-05-26 06:48:31,753 Transformer attention backend: _native_flash
+2026-05-26T06:48:31.759027666Z model_utils.py      :228  2026-05-26 06:48:31,758 VAE source: single safetensors /runpod-volume/models/vae/split_files/vae/qwen_image_vae.safetensors
+2026-05-26T06:48:31.761846076Z model_utils.py      :124  2026-05-26 06:48:31,761 Loading vae/config.json from local: /runpod-volume/models/Qwen--Qwen-Image-Edit-2511/vae/config.json
+2026-05-26T06:48:31.978927765Z model_utils.py      :234  2026-05-26 06:48:31,978 VAE raw state dict: 194 tensors loaded.
+2026-05-26T06:48:31.979009558Z model_utils.py      :237  2026-05-26 06:48:31,978 VAE converted state dict: 194 tensors (Wan → diffusers key remap).
+2026-05-26T06:48:31.986402009Z fp8_loader.py       :418  2026-05-26 06:48:31,986 Loading text encoder config from: /runpod-volume/models/Qwen--Qwen-Image-Edit-2511
+2026-05-26T06:48:32.000398397Z fp8_loader.py       :424  2026-05-26 06:48:32,000 Streaming FP8 file [lazy (FP8 in memory)]: /runpod-volume/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors
+2026-05-26T06:48:32.020549522Z fp8_loader.py       :273  2026-05-26 06:48:32,020 FP8 scaled prefix=''  marker dtype=torch.float8_e4m3fn  (lazy — keeping FP8 in memory)
+2026-05-26T06:48:33.236816344Z fp8_loader.py       :311  2026-05-26 06:48:33,236 Kept 358 tensors as FP8, rest cast to torch.bfloat16.
+2026-05-26T06:48:33.237192407Z fp8_loader.py       :426  2026-05-26 06:48:33,237 Loaded 1087 tensors into state dict.
+2026-05-26T06:48:33.295736522Z fp8_loader.py       :435  2026-05-26 06:48:33,295 Qwen2.5-VL layouts → file: old, model: new
+2026-05-26T06:48:33.295751310Z fp8_loader.py       :438  2026-05-26 06:48:33,295 Remapping state-dict keys: old → new Qwen2.5-VL layout.
+2026-05-26T06:48:33.295969197Z fp8_loader.py       :447  2026-05-26 06:48:33,295 Instantiating Qwen2.5-VL on meta device.
+2026-05-26T06:48:33.355546253Z fp8_loader.py       :461  2026-05-26 06:48:33,355 Replaced 358 nn.Linear → Fp8Linear (FP8 weights will stay in GPU memory).
+2026-05-26T06:48:33.357175840Z fp8_loader.py       :468  2026-05-26 06:48:33,357 Example post-remap key: 'model.visual.blocks.24.mlp.up_proj.bias'  (model expects keys like 'model.visual.patch_embed.proj.weight')
+2026-05-26T06:48:33.370018671Z fp8_loader.py       :488  2026-05-26 06:48:33,369 Text encoder ready (lazy FP8). FP8 weights occupy ~7.2 GB; BF16 copy materialises only during forward.
+2026-05-26T06:48:33.370380518Z model_utils.py      :280  2026-05-26 06:48:33,370 Tokenizer source: /runpod-volume/models/Qwen--Qwen-Image-Edit-2511
+2026-05-26T06:48:33.570200975Z model_utils.py      :285  2026-05-26 06:48:33,570 Processor source: /runpod-volume/models/Qwen--Qwen-Image-Edit-2511
+2026-05-26T06:48:34.121540138Z model_utils.py      :360  2026-05-26 06:48:34,121 Assembling QwenImageEditPlusPipeline from explicit components.
+2026-05-26T06:49:02.663619202Z pipeline_utils.py   :185  2026-05-26 06:49:02,663 Loaded LoRA 'angles' from qwen-image-edit-2511-multiple-angles-lora.safetensors
+2026-05-26T06:49:15.840508468Z /opt/conda/lib/python3.11/site-packages/peft/tuners/tuners_utils.py:302: UserWarning: Already found a `peft_config` attribute in the model. This will lead to having multiple adapters in the model. Make sure to know what you are doing!
+2026-05-26T06:49:15.840541881Z   warnings.warn(
+2026-05-26T06:49:16.618187159Z pipeline_utils.py   :185  2026-05-26 06:49:16,617 Loaded LoRA 'lightning' from Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors
+2026-05-26T06:49:16.640212999Z pipeline_utils.py   :198  2026-05-26 06:49:16,640 Active adapters: ['angles', 'lightning'] (weights: [1.0, 1.0])
+2026-05-26T06:49:16.640231383Z handler.py          :90   2026-05-26 06:49:16,640 Pipeline ready.
+2026-05-26T06:49:16.640239879Z --- Starting Serverless Worker |  Version 1.9.0 ---
+2026-05-26T06:49:16.678868800Z {"requestId": null, "message": "Running 7 fitness check(s)...", "level": "INFO"}
+2026-05-26T06:49:16.814414789Z {"requestId": null, "message": "GPU binary test passed: 1 GPU(s) healthy (CUDA 13.0)", "level": "INFO"}
+2026-05-26T06:49:16.814571813Z {"requestId": null, "message": "Memory check passed: 143.36GB available (of 186.34GB total)", "level": "INFO"}
+2026-05-26T06:49:16.814600877Z {"requestId": null, "message": "Disk space check passed: 59.98GB free (100.0% available)", "level": "INFO"}
+2026-05-26T06:49:16.840503896Z {"requestId": null, "message": "Network connectivity passed: Connected to 8.8.8.8 (26ms)", "level": "INFO"}
+2026-05-26T06:49:16.861332227Z {"requestId": null, "message": "CUDA version check passed: 13.0 (minimum: 11.8)", "level": "INFO"}
+2026-05-26T06:49:16.884071801Z {"requestId": null, "message": "CUDA initialization passed: 1 device(s) initialized successfully", "level": "INFO"}
+2026-05-26T06:49:16.948189587Z {"requestId": null, "message": "GPU compute benchmark passed: Matrix multiply completed in 46ms", "level": "INFO"}
+2026-05-26T06:49:16.948235202Z {"requestId": null, "message": "All fitness checks passed. (269.23ms)", "level": "INFO"}
+2026-05-26T06:49:17.611651446Z {"requestId": null, "message": "Jobs in queue: 1", "level": "INFO"}
+2026-05-26T06:49:17.611667365Z {"requestId": null, "message": "Jobs in progress: 1", "level": "INFO"}
+2026-05-26T06:49:17.611718160Z {"requestId": "9f610697-160d-4b48-999f-15b29abc118d-e1", "message": "Started.", "level": "INFO"}
+2026-05-26T06:49:17.636715115Z pipeline_utils.py   :241  2026-05-26 06:49:17,636 Inference: steps=4  cfg=1.00  denoise=1.00  seed=1442500027  device=cuda
+2026-05-26T06:49:17.695632338Z  negative_prompt is passed but classifier-free guidance is not enabled since true_cfg_scale <= 1
+2026-05-26T06:49:24.968982611Z   0%|          | 0/4 [00:00<?, ?it/s] 25%|██▌       | 1/4 [00:01<00:04,  1.65s/it] 50%|█████     | 2/4 [00:03<00:03,  1.61s/it] 75%|███████▌  | 3/4 [00:04<00:01,  1.59s/it]100%|██████████| 4/4 [00:06<00:00,  1.59s/it]100%|██████████| 4/4 [00:06<00:00,  1.59s/it]
+2026-05-26T06:49:25.615231809Z {"requestId": "9f610697-160d-4b48-999f-15b29abc118d-e1", "message": "Finished.", "level": "INFO"}

@@ -1,4 +1,5 @@
 import { StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { RunsService } from './runs.service';
 import { CreateRunMultipartDto } from './dto/create-run-multipart.dto';
 export declare class RunsController {
@@ -8,6 +9,7 @@ export declare class RunsController {
     create(file: Express.Multer.File, dto: CreateRunMultipartDto): Promise<import("./runs.helpers").RunSerializable>;
     cancel(id: string): Promise<import("./runs.helpers").RunSerializable>;
     input(id: string): Promise<StreamableFile>;
-    output(id: string): Promise<StreamableFile>;
+    legacyOutput(_id: string, res: Response): void;
+    outputAt(id: string, file: string): Promise<StreamableFile>;
     getOne(id: string): Promise<import("./runs.helpers").RunSerializable>;
 }

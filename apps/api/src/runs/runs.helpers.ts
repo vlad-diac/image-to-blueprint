@@ -1,4 +1,4 @@
-import { RunStatus, type Run } from '@prisma/client';
+import { RunStatus, type Run, type RunImage } from '@prisma/client';
 
 const TERMINAL = new Set<RunStatus>([
   RunStatus.SUCCEEDED,
@@ -11,6 +11,8 @@ export function isTerminalRunStatus(s: RunStatus): boolean {
   return TERMINAL.has(s);
 }
 
+export type RunOutputsMetaRow = Pick<RunImage, 'index' | 'seed' | 'width' | 'height'>;
+
 export interface RunSerializable {
   id: string;
   status: Run['status'];
@@ -18,6 +20,7 @@ export interface RunSerializable {
   negativePrompt: string;
   steps: number;
   cfg: number;
+  numImages: number;
   seed: string | null;
   runpodJobId: string | null;
   workerJobDir: string | null;
@@ -26,18 +29,39 @@ export interface RunSerializable {
   executionMs: number | null;
   errorMessage: string | null;
   rawStatus: unknown;
+  outputs: Array<{
+    index: number;
+    seed: string | null;
+    width: number | null;
+    height: number | null;
+  }>;
   startedAt: string | null;
   completedAt: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
+export type SerializedRunPayload = Omit<Run, 'inputImage'> & {
+  outputs?: RunOutputsMetaRow[];
+};
+
 function toIso(d: Date | null): string | null {
   if (!d) return null;
   return d.toISOString();
 }
 
-export function serializeRun(run: Run): RunSerializable {
+function metaRow(o: RunOutputsMetaRow) {
+  return {
+    index: o.index,
+    seed: o.seed !== null ? o.seed.toString() : null,
+    width: o.width ?? null,
+    height: o.height ?? null,
+  };
+}
+
+/** Run serialized for API responses (omit input bytes unless loading full entity). */
+export function serializeRun(run: SerializedRunPayload): RunSerializable {
+  const outs = [...(run.outputs ?? [])].sort((a, b) => a.index - b.index);
   return {
     id: run.id,
     status: run.status,
@@ -45,6 +69,7 @@ export function serializeRun(run: Run): RunSerializable {
     negativePrompt: run.negativePrompt,
     steps: run.steps,
     cfg: run.cfg,
+    numImages: run.numImages,
     seed: run.seed !== null ? run.seed.toString() : null,
     runpodJobId: run.runpodJobId,
     workerJobDir: run.workerJobDir,
@@ -53,6 +78,7 @@ export function serializeRun(run: Run): RunSerializable {
     executionMs: run.executionMs ?? null,
     errorMessage: run.errorMessage,
     rawStatus: run.rawStatus,
+    outputs: outs.map(metaRow),
     startedAt: toIso(run.startedAt),
     completedAt: toIso(run.completedAt),
     createdAt: run.createdAt.toISOString(),
@@ -66,4 +92,6 @@ export interface CreateRunFields {
   steps?: number;
   cfg?: number;
   seed?: number;
+  /** 1–4 (default 3). */
+  numImages?: number;
 }

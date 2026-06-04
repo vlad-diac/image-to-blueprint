@@ -4,6 +4,12 @@ export interface RunpodHandlerOutput {
     job_dir?: string;
     width?: number;
     height?: number;
+    num_images?: number;
+    images?: Array<{
+        index: number;
+        seed?: number;
+        image_b64?: string;
+    }>;
 }
 export interface RunpodStatusResponse {
     id?: string;
@@ -24,4 +30,5 @@ export interface RunpodHandlerInput {
     steps?: number;
     cfg?: number;
     seed?: number;
+    num_images?: number;
 }
