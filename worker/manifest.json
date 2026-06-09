@@ -10,7 +10,7 @@
       }
     },
     {
-      "dest": "models/vae/qwen_image_vae.safetensors",
+      "dest": "models/vae/split_files/vae/qwen_image_vae.safetensors",
       "source": {
         "kind": "hf_file",
         "repo": "Comfy-Org/Qwen-Image_ComfyUI",

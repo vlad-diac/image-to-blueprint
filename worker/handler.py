@@ -56,7 +56,15 @@ def _build_pipeline() -> QwenEditPipeline:
     transformer_path = _check(MODELS / "unet"         / "qwen-image-edit-2511-Q3_K_L.gguf")
     vae_path         = _check(MODELS / "vae"          / "split_files" / "vae" / "qwen_image_vae.safetensors")
     te_path          = _check(MODELS / "text_encoders" / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
-    snapshot_path    = _check(MODELS / "Qwen--Qwen-Image-Edit-2511")
+    snapshot_path    = MODELS / "Qwen--Qwen-Image-Edit-2511"
+    _check(snapshot_path)
+    tx_cfg = snapshot_path / "transformer" / "config.json"
+    if not tx_cfg.is_file():
+        logger.error(
+            "✗ MISSING  %s — config snapshot incomplete; "
+            "re-run worker/scripts/provision_volume.py on the volume",
+            tx_cfg,
+        )
     lora_angles      = _check(MODELS / "loras"          / "qwen-image-edit-2511-multiple-angles-lora.safetensors")
     lora_lightning   = _check(MODELS / "loras"          / "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors")
 
