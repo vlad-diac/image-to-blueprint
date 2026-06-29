@@ -8,6 +8,7 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r worker-requiremen
 
 COPY model_utils.py fp8_loader.py pipeline_utils.py /app/
 COPY worker/handler.py /app/handler.py
+COPY worker/scripts/ /app/scripts/
 
 ENV PYTHONPATH=/app
 ENV RUNPOD_VOLUME=/runpod-volume

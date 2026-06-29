@@ -19,6 +19,7 @@ os.environ.setdefault("HF_HUB_CACHE", str(_VOL_EARLY / "huggingface-cache" / "hu
 os.environ["HF_HUB_OFFLINE"]      = "1"   # never download at runtime
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
+import subprocess
 import runpod
 import torch
 from PIL import Image
@@ -143,17 +144,53 @@ def handler(event: dict) -> dict:
     job_dir = VOL / "jobs" / str(job_id)
     job_dir.mkdir(parents=True, exist_ok=True)
 
+    script_path = Path(__file__).parent / "scripts" / "png_to_svg.py"
+
     payload_images = []
     for i, out in enumerate(imgs):
-        fname = job_dir / f"output_{i}.png"
-        out.save(fname)
-        buf = io.BytesIO()
-        out.save(buf, format="PNG")
-        image_b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+        png_path = job_dir / f"output_{i}.png"
+        out.save(png_path)
+
+        # Generate SVG using the script
+        try:
+            result = subprocess.run(
+                [
+                    "python3",
+                    str(script_path),
+                    png_path.name,
+                    "--output-dir",
+                    str(job_dir),
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+            logger.info(f"SVG generation output: {result.stdout}")
+
+            # Find the generated SVG file (script creates timestamped directories)
+            svg_dirs = sorted((job_dir / "svg").glob(f"{png_path.stem}_*_centerline"))
+            if svg_dirs:
+                svg_path = svg_dirs[-1] / "output.svg"
+                if svg_path.exists():
+                    svg_content = svg_path.read_text(encoding="utf-8")
+                    svg_b64 = base64.b64encode(svg_content.encode("utf-8")).decode("ascii")
+                else:
+                    logger.warning(f"SVG file not found at {svg_path}")
+                    svg_b64 = None
+            else:
+                logger.warning(f"No SVG directory found for {png_path.stem}")
+                svg_b64 = None
+        except subprocess.CalledProcessError as e:
+            logger.exception(f"SVG generation failed for output_{i}: {e.stderr}")
+            svg_b64 = None
+        except Exception:
+            logger.exception(f"Unexpected error generating SVG for output_{i}")
+            svg_b64 = None
+
         payload_images.append({
             "index": i,
             "seed": int(seeds_list[i]),
-            "image_b64": image_b64,
+            "svg_b64": svg_b64,
         })
 
     first = imgs[0]
