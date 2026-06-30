@@ -153,6 +153,7 @@ def handler(event: dict) -> dict:
 
         # Generate SVG using the script
         try:
+            logger.info(f"Running SVG conversion for {png_path}")
             result = subprocess.run(
                 [
                     "python3",
@@ -165,26 +166,47 @@ def handler(event: dict) -> dict:
                 text=True,
                 check=True,
             )
-            logger.info(f"SVG generation output: {result.stdout}")
+            logger.info(f"SVG generation stdout: {result.stdout}")
+            logger.info(f"SVG generation stderr: {result.stderr}")
+
+            # Log what directories were created
+            svg_base = job_dir / "svg"
+            if svg_base.exists():
+                svg_subdirs = list(svg_base.glob(f"{png_path.stem}_*_centerline"))
+                logger.info(f"Found {len(svg_subdirs)} SVG subdirectories: {svg_subdirs}")
+            else:
+                logger.warning(f"SVG base directory does not exist: {svg_base}")
 
             # Find the generated SVG file (script creates timestamped directories)
             svg_dirs = sorted((job_dir / "svg").glob(f"{png_path.stem}_*_centerline"))
+            logger.info(f"Looking for SVG in: {job_dir / 'svg' / f'{png_path.stem}_*_centerline'}")
+
             if svg_dirs:
                 svg_path = svg_dirs[-1] / "output.svg"
+                logger.info(f"Found SVG directory: {svg_dirs[-1]}, checking for: {svg_path}")
                 if svg_path.exists():
                     svg_content = svg_path.read_text(encoding="utf-8")
                     svg_b64 = base64.b64encode(svg_content.encode("utf-8")).decode("ascii")
+                    logger.info(f"Successfully encoded SVG for output_{i}, size: {len(svg_b64)} bytes")
                 else:
                     logger.warning(f"SVG file not found at {svg_path}")
                     svg_b64 = None
             else:
-                logger.warning(f"No SVG directory found for {png_path.stem}")
+                logger.warning(f"No SVG directory found for {png_path.stem} in {job_dir / 'svg'}")
+                # List what's actually there
+                svg_base = job_dir / "svg"
+                if svg_base.exists():
+                    contents = list(svg_base.iterdir())
+                    logger.warning(f"Contents of {svg_base}: {contents}")
                 svg_b64 = None
         except subprocess.CalledProcessError as e:
-            logger.exception(f"SVG generation failed for output_{i}: {e.stderr}")
+            logger.error(f"SVG generation subprocess failed for output_{i}")
+            logger.error(f"Return code: {e.returncode}")
+            logger.error(f"STDOUT: {e.stdout}")
+            logger.error(f"STDERR: {e.stderr}")
             svg_b64 = None
-        except Exception:
-            logger.exception(f"Unexpected error generating SVG for output_{i}")
+        except Exception as ex:
+            logger.exception(f"Unexpected error generating SVG for output_{i}: {ex}")
             svg_b64 = None
 
         payload_images.append({
