@@ -11,3 +11,10 @@ runpod>=1.6.0
 huggingface_hub>=0.26.0
 hf_transfer>=0.1.4
 httpx>=0.27.0
+
+# SVG centerline tracing dependencies
+opencv-python-headless>=4.8.0  # Headless version for serverless environments (no X11/GUI dependencies)
+networkx>=3.0
+scikit-image>=0.21.0
+sknw>=0.14
+shapely>=2.0.0
