@@ -144,6 +144,7 @@ def handler(event: dict) -> dict:
     job_dir = VOL / "jobs" / str(job_id)
     job_dir.mkdir(parents=True, exist_ok=True)
 
+    # png_to_svg.py normalises orientation: the SVG is emitted bow-up, portrait.
     script_path = Path(__file__).parent / "scripts" / "png_to_svg.py"
 
     payload_images = []
