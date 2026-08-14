@@ -3,3 +3,4 @@ networkx>=3.0
 scikit-image>=0.21.0
 sknw>=0.14
 shapely>=2.0.0
+Pillow>=10.0.0  # tune_svg.py: render traced polylines + compose the labelled comparison grid
