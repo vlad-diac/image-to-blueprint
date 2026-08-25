@@ -1,0 +1,123 @@
+{
+  "runs": 3,
+  "first_run": "2026-08-25T11:07:29+00:00",
+  "last_run": "2026-08-25T11:14:29+00:00",
+  "pools": [
+    "ADA_32_PRO",
+    "ADA_48_PRO",
+    "ADA_80_PRO",
+    "BLACKWELL_96"
+  ],
+  "time_of_day": {
+    "period_samples": {
+      "Night": 0,
+      "Morning": 0,
+      "Afternoon": 3,
+      "Evening": 0
+    },
+    "pools": {
+      "ADA_32_PRO": {
+        "Night": {
+          "avg": null,
+          "samples": 0
+        },
+        "Morning": {
+          "avg": null,
+          "samples": 0
+        },
+        "Afternoon": {
+          "avg": 1.0,
+          "samples": 3
+        },
+        "Evening": {
+          "avg": null,
+          "samples": 0
+        }
+      },
+      "ADA_48_PRO": {
+        "Night": {
+          "avg": null,
+          "samples": 0
+        },
+        "Morning": {
+          "avg": null,
+          "samples": 0
+        },
+        "Afternoon": {
+          "avg": 1.0,
+          "samples": 3
+        },
+        "Evening": {
+          "avg": null,
+          "samples": 0
+        }
+      },
+      "ADA_80_PRO": {
+        "Night": {
+          "avg": null,
+          "samples": 0
+        },
+        "Morning": {
+          "avg": null,
+          "samples": 0
+        },
+        "Afternoon": {
+          "avg": 2.0,
+          "samples": 3
+        },
+        "Evening": {
+          "avg": null,
+          "samples": 0
+        }
+      },
+      "BLACKWELL_96": {
+        "Night": {
+          "avg": null,
+          "samples": 0
+        },
+        "Morning": {
+          "avg": null,
+          "samples": 0
+        },
+        "Afternoon": {
+          "avg": 1.0,
+          "samples": 3
+        },
+        "Evening": {
+          "avg": null,
+          "samples": 0
+        }
+      }
+    }
+  },
+  "best_ever": {
+    "BLACKWELL_96": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "seen_at": "2026-08-25T11:07:29+00:00"
+    },
+    "ADA_80_PRO": {
+      "best_rank": 2,
+      "best_stock": "Medium",
+      "best_dc": "AP-IN-1",
+      "best_gpu": "NVIDIA H100 80GB HBM3",
+      "seen_at": "2026-08-25T11:07:29+00:00"
+    },
+    "ADA_48_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EUR-IS-2",
+      "best_gpu": "NVIDIA L40S",
+      "seen_at": "2026-08-25T11:07:29+00:00"
+    },
+    "ADA_32_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA GeForce RTX 5090",
+      "seen_at": "2026-08-25T11:07:29+00:00"
+    }
+  }
+}

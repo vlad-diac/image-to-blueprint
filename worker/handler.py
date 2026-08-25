@@ -7,6 +7,7 @@ import io
 import logging
 import os
 import random
+import re
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
@@ -100,6 +101,23 @@ PIPE = _build_pipeline()
 logger.info("Pipeline ready.")
 
 
+_VIEWBOX_RE = re.compile(
+    r'viewBox="[\d.\-]+\s+[\d.\-]+\s+([\d.]+)\s+([\d.]+)"'
+)
+
+
+def _svg_dimensions(svg_content: str) -> tuple[int | None, int | None]:
+    """Return the (width, height) of the SVG coordinate space from its viewBox.
+
+    png_to_svg.py emits the *rotated, portrait* viewBox, so these are the
+    dimensions marker bounds must be validated against — not the generated PNG's.
+    """
+    m = _VIEWBOX_RE.search(svg_content)
+    if not m:
+        return None, None
+    return round(float(m.group(1))), round(float(m.group(2)))
+
+
 def handler(event: dict) -> dict:
 
     inp = event.get("input") or {}
@@ -144,6 +162,7 @@ def handler(event: dict) -> dict:
     job_dir = VOL / "jobs" / str(job_id)
     job_dir.mkdir(parents=True, exist_ok=True)
 
+    # png_to_svg.py normalises orientation: the SVG is emitted bow-up, portrait.
     script_path = Path(__file__).parent / "scripts" / "png_to_svg.py"
 
     payload_images = []
@@ -152,6 +171,9 @@ def handler(event: dict) -> dict:
         out.save(png_path)
 
         # Generate SVG using the script
+        svg_b64 = None
+        svg_w: int | None = None
+        svg_h: int | None = None
         try:
             logger.info(f"Running SVG conversion for {png_path}")
             result = subprocess.run(
@@ -187,7 +209,11 @@ def handler(event: dict) -> dict:
                 if svg_path.exists():
                     svg_content = svg_path.read_text(encoding="utf-8")
                     svg_b64 = base64.b64encode(svg_content.encode("utf-8")).decode("ascii")
-                    logger.info(f"Successfully encoded SVG for output_{i}, size: {len(svg_b64)} bytes")
+                    svg_w, svg_h = _svg_dimensions(svg_content)
+                    logger.info(
+                        f"Successfully encoded SVG for output_{i}, "
+                        f"size: {len(svg_b64)} bytes, viewBox: {svg_w}x{svg_h}"
+                    )
                 else:
                     logger.warning(f"SVG file not found at {svg_path}")
                     svg_b64 = None
@@ -213,14 +239,22 @@ def handler(event: dict) -> dict:
             "index": i,
             "seed": int(seeds_list[i]),
             "svg_b64": svg_b64,
+            # SVG coordinate space (rotated, bow-up portrait). Each variant may
+            # rotate by a different angle, so these are per-image, not global.
+            "width": svg_w,
+            "height": svg_h,
         })
 
     first = imgs[0]
     rel = job_dir.relative_to(VOL)
+    # Top-level width/height mirror the first variant's SVG so consumers that
+    # read the global dims still validate against the rotated result, not the
+    # generated PNG. Fall back to the raw image only if the SVG had no viewBox.
+    top = payload_images[0] if payload_images else {}
     return {
         "job_dir": str(rel).replace("\\", "/"),
-        "width": first.width,
-        "height": first.height,
+        "width": top.get("width") or first.width,
+        "height": top.get("height") or first.height,
         "num_images": num_images,
         "images": payload_images,
     }

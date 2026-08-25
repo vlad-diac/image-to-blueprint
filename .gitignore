@@ -3,6 +3,8 @@ Miniconda3-latest-Linux-installer.sh
 __pycache__/
 
 node_modules/
+venv/
+input/
 
 .env
 apps/api/node_modules

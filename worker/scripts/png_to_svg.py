@@ -47,6 +47,7 @@ class PipelineFlags:
     geo_postproc: bool
     svg_opt: bool
     section_detect: bool
+    orient: bool
 
 
 def _load_image_bgr(path: Path) -> np.ndarray:
@@ -230,16 +231,97 @@ def stage_geo_postproc(
     return out
 
 
+def estimate_orientation(mask: np.ndarray) -> float:
+    """Return how many degrees to rotate the drawing so the bow points up.
+
+    ``mask`` is a black-and-white ship image (ship pixels = 255). Returns 0.0
+    (leave as-is) when orientation can't be determined — a blank image or a
+    roughly round blob — so bad generations (e.g. the side-view 00041) are not
+    spun randomly.
+    """
+    ys, xs = np.nonzero(mask)
+    if xs.size < 50:  # almost no ship pixels — nothing to orient
+        return 0.0
+
+    # Long ("nose-to-tail") and short ("side-to-side") directions of the ship,
+    # found from how its pixels are spread out.
+    pts = np.column_stack((xs, ys)).astype(np.float64)
+    mean = pts.mean(axis=0)
+    stretch, directions = np.linalg.eigh(np.cov((pts - mean).T))
+    major = directions[:, int(np.argmax(stretch))]  # nose-to-tail direction
+    minor = directions[:, int(np.argmin(stretch))]  # side-to-side direction
+
+    # Roughly round -> no reliable length direction, so don't rotate.
+    if stretch.min() <= 0 or (stretch.max() / stretch.min()) < 1.15:
+        return 0.0
+
+    # Position of each pixel along the length (t) and across the width (s).
+    t = (pts - mean) @ major
+    s = (pts - mean) @ minor
+
+    # Compare the outer ~15% at each end: the bow is the skinnier (pointier) end;
+    # if both ends look similar, the end with less ink is the bow (the bridge /
+    # mast cluster sits toward the stern).
+    t_lo, t_hi = np.percentile(t, 5), np.percentile(t, 95)
+    tip = 0.15 * max(t_hi - t_lo, 1e-6)
+    neg_end = t <= (t_lo + tip)
+    pos_end = t >= (t_hi - tip)
+
+    def _tip(sel: np.ndarray) -> tuple[float, int]:
+        if not np.any(sel):
+            return (0.0, 0)
+        return (float(s[sel].max() - s[sel].min()), int(sel.sum()))
+
+    neg_w, neg_ink = _tip(neg_end)
+    pos_w, pos_ink = _tip(pos_end)
+
+    if abs(neg_w - pos_w) > 0.10 * max(neg_w, pos_w, 1.0):
+        bow_at_high_end = pos_w < neg_w  # narrower tip is the bow
+    else:
+        bow_at_high_end = pos_ink < neg_ink  # tie-break: sparser tip is the bow
+
+    bow_dir = major if bow_at_high_end else -major
+
+    # Angle that turns the bow arrow to point straight up. (+90 verified against
+    # sample 00043: bow starts at the left and ends up at the top.)
+    current_angle = float(np.degrees(np.arctan2(bow_dir[1], bow_dir[0])))
+    return current_angle + 90.0
+
+
+def rotate_polylines(
+    polylines: list[np.ndarray], angle_deg: float, w: int, h: int
+) -> tuple[list[np.ndarray], int, int]:
+    """Rotate every traced line by ``angle_deg`` about the image centre, shift the
+    result to start at (0, 0), and return the lines plus the new canvas size.
+
+    Rotating the points (not the pixels) keeps the drawing perfectly sharp.
+    """
+    if abs(angle_deg) < 1e-3 or not polylines:
+        return polylines, w, h
+
+    M = cv2.getRotationMatrix2D((w / 2.0, h / 2.0), angle_deg, 1.0)
+    R, shift = M[:, :2], M[:, 2]
+    rotated = [xy @ R.T + shift for xy in polylines]
+
+    allp = np.vstack(rotated)
+    min_xy = allp.min(axis=0)
+    rotated = [p - min_xy for p in rotated]  # slide top-left corner to (0, 0)
+    max_xy = (allp - min_xy).max(axis=0)
+    new_w = int(np.ceil(max_xy[0])) + 1
+    new_h = int(np.ceil(max_xy[1])) + 1  # taller than wide once upright
+    return rotated, new_w, new_h
+
+
 def stage_section_detect(
     polylines: list[np.ndarray],
     width: int,
     height: int,
     bow_threshold: float,
 ) -> dict[int, str]:
-    """Map each polyline to a section using a 3×2 grid on the hull bounding box.
+    """Label each traced line with its ship section, for an upright (bow-up) ship.
 
-    Bow is left (low X), stern/crows-nest is right (high X). Port is above the
-    horizontal midline (lower image Y), starboard below.
+    Bow = top (low Y), stern/crows-nest = bottom (high Y). Port is left of the
+    vertical centreline (low X), starboard is right.
     """
     del width, height  # reserved for future use
     n = len(polylines)
@@ -252,23 +334,23 @@ def stage_section_detect(
     x_max = float(allp[:, 0].max())
     y_min = float(allp[:, 1].min())
     y_max = float(allp[:, 1].max())
-    centerline_y = (y_min + y_max) / 2.0
-    xr = max(x_max - x_min, 1e-6)
+    centerline_x = (x_min + x_max) / 2.0
+    yr = max(y_max - y_min, 1e-6)
 
     section_map: dict[int, str] = {}
     for i, xy in enumerate(polylines):
         if len(xy) == 0:
             section_map[i] = "mid-port"
             continue
-        x_norm = (float(xy[:, 0].mean()) - x_min) / xr
-        cy = float(xy[:, 1].mean())
-        if x_norm < bow_threshold:
+        y_norm = (float(xy[:, 1].mean()) - y_min) / yr  # 0=top (bow) .. 1=bottom
+        cx = float(xy[:, 0].mean())
+        if y_norm < bow_threshold:
             zone = "bow"
-        elif x_norm > (1.0 - bow_threshold):
+        elif y_norm > (1.0 - bow_threshold):
             zone = "crows-nest"
         else:
             zone = "mid"
-        side = "port" if cy < centerline_y else "starboard"
+        side = "port" if cx < centerline_x else "starboard"
         section_map[i] = f"{zone}-{side}"
     return section_map
 
@@ -378,6 +460,7 @@ def bitmap_to_svg_centerline(
     run_dir.mkdir(parents=True, exist_ok=True)
 
     bgr = _load_image_bgr(input_path)
+    h, w = bgr.shape[:2]  # starting canvas size; the orient step updates it
 
     # 1 — Grayscale
     work, preview = stage_grayscale(bgr, flags.grayscale)
@@ -421,8 +504,14 @@ def bitmap_to_svg_centerline(
         polylines, flags.geo_postproc, geo_tolerance
     )
 
+    # 10.5 — Orientation normalisation → bow up, portrait
+    if flags.orient:
+        mask = _to_lines_white_binary(work)  # cleaned black-and-white ship
+        angle = estimate_orientation(mask)  # how far to spin it
+        polylines, w, h = rotate_polylines(polylines, angle, w, h)
+        print(f"Orientation: rotated {angle:.1f} deg -> canvas {w}x{h}")
+
     # 11 — Section detection + debug preview
-    h, w = bgr.shape[:2]
     if flags.section_detect:
         section_map = stage_section_detect(
             polylines,
@@ -521,6 +610,11 @@ def build_arg_parser() -> argparse.ArgumentParser:
         help="Skip ship-section grid split; emit a single group id=\"default\"",
     )
     p.add_argument(
+        "--no-orient",
+        action="store_true",
+        help="Skip turning the ship upright (keep the original orientation)",
+    )
+    p.add_argument(
         "--section-bow-threshold",
         type=float,
         default=0.33,
@@ -591,6 +685,7 @@ def main() -> None:
         geo_postproc=args.geo_postproc,
         svg_opt=not args.no_svg_opt,
         section_detect=not args.no_section_detect,
+        orient=not args.no_orient,
     )
 
     bitmap_to_svg_centerline(
