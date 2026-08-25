@@ -29,12 +29,15 @@ Usage:
   # For polling loops / CI: exit non-zero if nothing meets the threshold
   python scripts/check_gpu_availability.py ADA_80_PRO --min-stock Medium --fail-empty
 
-Every run appends a timestamped snapshot to a history file (JSONL, one record per
-run — default: scripts/gpu_availability_history.jsonl) and prints an
-"availability by time of day" summary aggregated from that history, so repeated
-polling reveals when each pool tends to have stock (local-time buckets):
+Every run saves a timestamped snapshot as its own JSON file in a history folder
+(default: scripts/gpu_availability_history/, committed to git). On each run the
+script loads *all* snapshot files in that folder, merges them, and:
+  • prints an "availability by time of day" summary (local-time buckets), so
+    repeated polling reveals when each pool tends to have stock, and
+  • (re)writes the merged "official" list — official.json — the consolidated
+    view you compare individual runs against.
 
-  python scripts/check_gpu_availability.py --history-file /tmp/gpu.jsonl
+  python scripts/check_gpu_availability.py --history-dir /tmp/gpu-history
   python scripts/check_gpu_availability.py --no-save        # don't record this run
   python scripts/check_gpu_availability.py --no-time-of-day # skip the summary
 
@@ -117,11 +120,13 @@ PERIODS: list[tuple[str, range]] = [
     ("Evening", range(18, 24)),  # 18:00–23:59
 ]
 
-# One record per run is appended here (JSONL). Kept next to the script and
-# out of git (see .gitignore) — it's local polling state, not source.
-DEFAULT_HISTORY_FILE = os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), "gpu_availability_history.jsonl",
+# Each run writes one snapshot file (run-<UTC>.json) into this folder, and the
+# merged/consolidated result is (re)written to official.json alongside them.
+# The folder is committed to git so runs can be compared over time.
+DEFAULT_HISTORY_DIR = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "gpu_availability_history",
 )
+OFFICIAL_FILENAME = "official.json"
 
 
 def _stock_rank(status: str | None) -> int:
@@ -338,26 +343,92 @@ def make_snapshot(
     }
 
 
-def append_history(path: str, record: dict[str, Any]) -> None:
-    with open(path, "a", encoding="utf-8") as fh:
-        fh.write(json.dumps(record) + "\n")
+def _file_stamp(iso_utc: str) -> str:
+    """Filesystem-safe, sortable UTC stamp for a snapshot filename."""
+    try:
+        return datetime.fromisoformat(iso_utc).astimezone(timezone.utc).strftime(
+            "%Y%m%dT%H%M%SZ",
+        )
+    except (ValueError, TypeError):
+        return "unknown"
 
 
-def load_history(path: str) -> list[dict[str, Any]]:
-    """Read JSONL history; skip blank/corrupt lines rather than failing a run."""
-    if not os.path.exists(path):
+def save_snapshot(history_dir: str, record: dict[str, Any]) -> str:
+    """Write one run's snapshot as run-<UTC>.json (unique). Returns the path."""
+    os.makedirs(history_dir, exist_ok=True)
+    stamp = _file_stamp(record.get("timestamp", ""))
+    path = os.path.join(history_dir, f"run-{stamp}.json")
+    n = 1
+    while os.path.exists(path):  # multiple runs in the same second
+        path = os.path.join(history_dir, f"run-{stamp}-{n}.json")
+        n += 1
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(record, fh, indent=2)
+        fh.write("\n")
+    return path
+
+
+def load_history(history_dir: str) -> list[dict[str, Any]]:
+    """Load + merge every run-*.json snapshot in the folder (skips official.json).
+
+    Corrupt/unreadable files are skipped rather than failing the run.
+    """
+    if not os.path.isdir(history_dir):
         return []
-    records = []
-    with open(path, encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                records.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
+    records: list[dict[str, Any]] = []
+    for name in sorted(os.listdir(history_dir)):
+        if not name.startswith("run-") or not name.endswith(".json"):
+            continue
+        try:
+            with open(os.path.join(history_dir, name), encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(data, dict):
+            records.append(data)
+        elif isinstance(data, list):  # tolerate a file holding several records
+            records.extend(r for r in data if isinstance(r, dict))
     return records
+
+
+def build_official(records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Merge all runs into the consolidated 'official' list.
+
+    Covers every pool seen across all snapshots (not just the current run's) and
+    combines the availability-by-time-of-day view with each pool's best-ever pick.
+    """
+    pools = sorted({p for r in records for p in (r.get("pools") or {})})
+    best_ever: dict[str, Any] = {}
+    for r in records:
+        for pool, entry in (r.get("pools") or {}).items():
+            rank = int(entry.get("best_rank", -1))
+            cur = best_ever.get(pool)
+            if cur is None or rank > cur["best_rank"]:
+                best_ever[pool] = {
+                    "best_rank": rank,
+                    "best_stock": entry.get("best_stock"),
+                    "best_dc": entry.get("best_dc"),
+                    "best_gpu": entry.get("best_gpu"),
+                    "seen_at": r.get("timestamp"),
+                }
+    stamps = sorted(r["timestamp"] for r in records if r.get("timestamp"))
+    return {
+        "runs": len(records),
+        "first_run": stamps[0] if stamps else None,
+        "last_run": stamps[-1] if stamps else None,
+        "pools": pools,
+        "time_of_day": aggregate_by_time_of_day(records, pools),
+        "best_ever": best_ever,
+    }
+
+
+def write_official(history_dir: str, records: list[dict[str, Any]]) -> str:
+    os.makedirs(history_dir, exist_ok=True)
+    path = os.path.join(history_dir, OFFICIAL_FILENAME)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(build_official(records), fh, indent=2)
+        fh.write("\n")
+    return path
 
 
 def _record_hour(record: dict[str, Any]) -> int | None:
@@ -473,12 +544,12 @@ def main(argv: list[str] | None = None) -> int:
         help="Exit non-zero if no datacenter meets the threshold for any selected pool.",
     )
     parser.add_argument(
-        "--history-file", default=DEFAULT_HISTORY_FILE,
-        help=f"JSONL file to append each run's snapshot to (default: {DEFAULT_HISTORY_FILE}).",
+        "--history-dir", default=DEFAULT_HISTORY_DIR,
+        help=f"Folder of per-run snapshot files + official.json (default: {DEFAULT_HISTORY_DIR}).",
     )
     parser.add_argument(
         "--no-save", action="store_true",
-        help="Don't append this run's snapshot to the history file.",
+        help="Don't write this run's snapshot or update the official list.",
     )
     parser.add_argument(
         "--no-time-of-day", action="store_true",
@@ -502,15 +573,23 @@ def main(argv: list[str] | None = None) -> int:
         summarize_report(build_report(datacenters, pools, args.region, -1)),
         args.region,
     )
+    saved_path = official_path = None
     if not args.no_save:
         try:
-            append_history(args.history_file, snapshot)
+            saved_path = save_snapshot(args.history_dir, snapshot)
         except OSError as exc:
-            print(f"warning: could not write history file: {exc}", file=sys.stderr)
+            print(f"warning: could not write snapshot file: {exc}", file=sys.stderr)
 
-    history = load_history(args.history_file)
-    if args.no_save:  # not persisted, but still count this run in the summary
+    # Load + merge every run in the folder (includes the one just saved).
+    history = load_history(args.history_dir)
+    if args.no_save:  # not persisted, but still count this run in the merge
         history.append(snapshot)
+    else:  # keep the merged official list current
+        try:
+            official_path = write_official(args.history_dir, history)
+        except OSError as exc:
+            print(f"warning: could not write official list: {exc}", file=sys.stderr)
+
     agg = aggregate_by_time_of_day(history, pools)
 
     if args.json:
@@ -518,11 +597,16 @@ def main(argv: list[str] | None = None) -> int:
             "timestamp": snapshot["timestamp"],
             "report": report,
             "time_of_day": agg,
+            "official": build_official(history),
         }, indent=2))
     else:
         print_report(report)
         if not args.no_time_of_day:
             print_time_of_day(agg, pools, len(history))
+        if saved_path or official_path:
+            hint = f"  {_c(_DIM, f'saved {os.path.basename(saved_path)}')}" if saved_path else ""
+            off = f"  {_c(_DIM, f'· official list: {OFFICIAL_FILENAME} ({len(history)} runs)')}" if official_path else ""
+            print(f"\n{_c(_DIM, 'history:')}{hint}{off}")
 
     if args.fail_empty and not any(report.values()):
         return 3

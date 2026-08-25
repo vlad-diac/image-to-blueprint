@@ -12,11 +12,24 @@ into the image or referenced by `docker-compose.dev.yml`.
   availability per datacenter/region, grouped by GPU pool
   (`runpodctl datacenter list`). Requires `runpodctl` installed + authenticated.
 
-  Each run appends a timestamped snapshot to a JSONL history file
-  (default `scripts/gpu_availability_history.jsonl`, git-ignored) and prints an
-  **availability-by-time-of-day** summary aggregated from that history — average
-  stock per pool bucketed into local-time periods (Night / Morning / Afternoon /
-  Evening), so repeated polling reveals *when* each pool tends to have stock.
+  Each run saves a timestamped snapshot as its own file in a history folder
+  (`scripts/gpu_availability_history/`, **committed to git** so runs can be
+  compared over time). On every run the script loads **all** snapshot files in
+  that folder, merges them, and:
+
+  - prints an **availability-by-time-of-day** summary — average stock per pool
+    bucketed into local-time periods (Night / Morning / Afternoon / Evening), so
+    repeated polling reveals *when* each pool tends to have stock; and
+  - (re)writes the merged **official list** — `official.json` — the consolidated
+    view (per-pool time-of-day + best-ever pick) you compare individual runs
+    against.
+
+  ```
+  scripts/gpu_availability_history/
+    run-20260825T110729Z.json   # one file per run (UTC timestamp)
+    run-20260825T110747Z.json
+    official.json               # merged/consolidated result, regenerated each run
+  ```
 
   ```bash
   python scripts/check_gpu_availability.py                  # default pools
@@ -24,12 +37,12 @@ into the image or referenced by `docker-compose.dev.yml`.
   python scripts/check_gpu_availability.py all --min-stock Medium
   python scripts/check_gpu_availability.py --list-pools
 
-  python scripts/check_gpu_availability.py --history-file /tmp/gpu.jsonl
+  python scripts/check_gpu_availability.py --history-dir /tmp/gpu-history
   python scripts/check_gpu_availability.py --no-save        # don't record this run
   python scripts/check_gpu_availability.py --no-time-of-day # skip the summary
   ```
 
-  Run it on a schedule (e.g. cron) to build up history:
+  Run it on a schedule (e.g. cron) to build up history, then commit the folder:
 
   ```bash
   */30 * * * * cd /path/to/image-to-blueprint && python scripts/check_gpu_availability.py all >/dev/null 2>&1

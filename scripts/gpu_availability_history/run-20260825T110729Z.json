@@ -1,0 +1,36 @@
+{
+  "timestamp": "2026-08-25T11:07:29+00:00",
+  "local_time": "2026-08-25T14:07:29+03:00",
+  "hour": 14,
+  "region": null,
+  "pools": {
+    "BLACKWELL_96": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+      "dc_count": 15
+    },
+    "ADA_80_PRO": {
+      "best_rank": 2,
+      "best_stock": "Medium",
+      "best_dc": "AP-IN-1",
+      "best_gpu": "NVIDIA H100 80GB HBM3",
+      "dc_count": 13
+    },
+    "ADA_48_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EUR-IS-2",
+      "best_gpu": "NVIDIA L40S",
+      "dc_count": 15
+    },
+    "ADA_32_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA GeForce RTX 5090",
+      "dc_count": 5
+    }
+  }
+}
