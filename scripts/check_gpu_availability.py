@@ -309,21 +309,36 @@ def print_pools() -> None:
 def summarize_report(
     report: dict[str, dict[str, list[dict[str, Any]]]],
 ) -> dict[str, dict[str, Any]]:
-    """Reduce a full report to per-pool best pick + datacenter count, for storage."""
+    """Reduce a full report to, per pool: best pick + every region's best stock.
+
+    `regions` collapses the pool's GPUs so each datacenter (region) appears once,
+    at its best stock across the pool — enough to rank the top regions later.
+    """
     summary: dict[str, dict[str, Any]] = {}
     for pool, gpus in report.items():
         best: dict[str, Any] | None = None
-        dc_count = 0
+        dc_best: dict[str, dict[str, Any]] = {}  # dc -> best row for this pool
         for gpu_id, rows in gpus.items():
-            dc_count += len(rows)
-            if rows and (best is None or rows[0]["rank"] > best["rank"]):
-                best = {**rows[0], "gpu": gpu_id}
+            for r in rows:
+                dc = r["dc"]
+                cur = dc_best.get(dc)
+                if cur is None or r["rank"] > cur["rank"]:
+                    dc_best[dc] = {
+                        "dc": dc,
+                        "location": r.get("location") or "",
+                        "rank": r["rank"],
+                        "stock": r["stock"],
+                    }
+                if best is None or r["rank"] > best["rank"]:
+                    best = {**r, "gpu": gpu_id}
+        regions = sorted(dc_best.values(), key=lambda x: (-x["rank"], x["dc"]))
         summary[pool] = {
             "best_rank": best["rank"] if best else -1,
             "best_stock": best["stock"] if best else None,
             "best_dc": best["dc"] if best else None,
             "best_gpu": best["gpu"] if best else None,
-            "dc_count": dc_count,
+            "dc_count": len(dc_best),
+            "regions": regions,
         }
     return summary
 
@@ -418,6 +433,7 @@ def build_official(records: list[dict[str, Any]]) -> dict[str, Any]:
         "last_run": stamps[-1] if stamps else None,
         "pools": pools,
         "time_of_day": aggregate_by_time_of_day(records, pools),
+        "top_regions": top_regions_by_pool(records, pools),
         "best_ever": best_ever,
     }
 
@@ -456,7 +472,7 @@ def aggregate_by_time_of_day(
     acc: dict[str, dict[str, list[int]]] = {
         p: {name: [] for name, _ in PERIODS} for p in pools
     }
-    period_samples = {name: 0 for name, _ in PERIODS}
+    period_samples = dict.fromkeys((name for name, _ in PERIODS), 0)
     for record in records:
         hour = _record_hour(record)
         period = period_of.get(hour) if hour is not None else None
@@ -481,7 +497,77 @@ def aggregate_by_time_of_day(
     return result
 
 
-def print_time_of_day(agg: dict[str, Any], pools: list[str], total: int) -> None:
+def _pool_regions(entry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Per-region rows for a pool entry (falls back to best_dc for old snapshots)."""
+    regions = entry.get("regions")
+    if regions:
+        return regions
+    best_dc = entry.get("best_dc")
+    if not best_dc:
+        return []
+    return [{
+        "dc": best_dc,
+        "location": "",
+        "rank": entry.get("best_rank", -1),
+        "stock": entry.get("best_stock"),
+    }]
+
+
+def top_regions_by_pool(
+    records: list[dict[str, Any]], pools: list[str], top_n: int = 3,
+) -> dict[str, list[dict[str, Any]]]:
+    """pool → up to top_n regions ranked by avg stock across all snapshots."""
+    # pool → dc → {ranks, location}
+    acc: dict[str, dict[str, dict[str, Any]]] = {p: {} for p in pools}
+    for record in records:
+        rec_pools = record.get("pools") or {}
+        for pool in pools:
+            entry = rec_pools.get(pool)
+            if entry is None:
+                continue
+            for reg in _pool_regions(entry):
+                dc = reg.get("dc")
+                if not dc:
+                    continue
+                slot = acc[pool].setdefault(dc, {"ranks": [], "location": ""})
+                slot["ranks"].append(max(0, int(reg.get("rank", -1))))
+                if reg.get("location"):
+                    slot["location"] = reg["location"]
+    result: dict[str, list[dict[str, Any]]] = {}
+    for pool in pools:
+        regs = [
+            {
+                "dc": dc,
+                "location": slot["location"],
+                "avg": sum(slot["ranks"]) / len(slot["ranks"]),
+                "samples": len(slot["ranks"]),
+            }
+            for dc, slot in acc[pool].items()
+            if slot["ranks"]
+        ]
+        regs.sort(key=lambda r: (-r["avg"], -r["samples"], r["dc"]))
+        result[pool] = regs[:top_n]
+    return result
+
+
+def _rank_label(score: float) -> str:
+    return STOCK_ORDER[max(0, min(3, round(score)))]
+
+
+def _avg_cell(score: float) -> str:
+    """Colored 'Label 2.5' for an average rank score."""
+    label = _rank_label(score)
+    text = f"{label} {score:.1f}"
+    code = _STOCK_COLOR.get(label.lower())
+    return _c(code, text) if code else text
+
+
+def print_time_of_day(
+    agg: dict[str, Any],
+    top_regions: dict[str, list[dict[str, Any]]],
+    pools: list[str],
+    total: int,
+) -> None:
     print(f"\n{_c(_BOLD, 'Availability by time of day')}  "
           f"{_c(_DIM, f'(local time, {total} snapshot(s))')}")
     if total == 0:
@@ -493,11 +579,8 @@ def print_time_of_day(agg: dict[str, Any], pools: list[str], total: int) -> None
     headers = ["pool", *(f"{name} (n={samples[name]})" for name in names)]
 
     def cell_text(pool: str, name: str) -> str:
-        stat = agg["pools"][pool][name]
-        if stat["avg"] is None:
-            return "—"
-        label = STOCK_ORDER[max(0, min(3, round(stat["avg"])))]
-        return f"{label} {stat['avg']:.1f}"
+        avg = agg["pools"][pool][name]["avg"]
+        return "—" if avg is None else f"{_rank_label(avg)} {avg:.1f}"
 
     rows = [[pool, *(cell_text(pool, name) for name in names)] for pool in pools]
     widths = [
@@ -509,15 +592,30 @@ def print_time_of_day(agg: dict[str, Any], pools: list[str], total: int) -> None
     for pool, row in zip(pools, rows):
         cells = [_c(_CYAN, row[0].ljust(widths[0]))]
         for i, name in enumerate(names, start=1):
+            avg = agg["pools"][pool][name]["avg"]
+            code = _STOCK_COLOR.get(_rank_label(avg).lower()) if avg is not None else None
             text = row[i].ljust(widths[i])
-            stat = agg["pools"][pool][name]
-            code = None
-            if stat["avg"] is not None:
-                label = STOCK_ORDER[max(0, min(3, round(stat["avg"])))]
-                code = _STOCK_COLOR.get(label.lower())
             cells.append(_c(code, text) if code else text)
         print("  " + "  ".join(cells))
-    print(f"  {_c(_DIM, 'avg stock per period: None 0 · Low 1 · Medium 2 · High 3')}")
+        _print_top_regions(top_regions.get(pool, []), indent=widths[0] + 4)
+    legend = ("avg stock: None 0 · Low 1 · Medium 2 · High 3 · "
+              "top regions ranked by avg over all runs (n× samples)")
+    print(f"  {_c(_DIM, legend)}")
+
+
+def _print_top_regions(regions: list[dict[str, Any]], indent: int) -> None:
+    """Print the 'top regions' line under a pool's time-of-day row."""
+    pad = " " * indent
+    if not regions:
+        print(f"{pad}{_c(_DIM, 'top regions: —')}")
+        return
+    parts = []
+    for reg in regions:
+        dc = _c(_CYAN, reg["dc"])
+        loc = _c(_DIM, f" ({reg['location']})") if reg["location"] else ""
+        samples = _c(_DIM, f"({reg['samples']}×)")
+        parts.append(f"{dc}{loc} {_avg_cell(reg['avg'])} {samples}")
+    print(f"{pad}{_c(_DIM, 'top regions:')} " + "   ".join(parts))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -591,18 +689,20 @@ def main(argv: list[str] | None = None) -> int:
             print(f"warning: could not write official list: {exc}", file=sys.stderr)
 
     agg = aggregate_by_time_of_day(history, pools)
+    top_regions = top_regions_by_pool(history, pools)
 
     if args.json:
         print(json.dumps({
             "timestamp": snapshot["timestamp"],
             "report": report,
             "time_of_day": agg,
+            "top_regions": top_regions,
             "official": build_official(history),
         }, indent=2))
     else:
         print_report(report)
         if not args.no_time_of_day:
-            print_time_of_day(agg, pools, len(history))
+            print_time_of_day(agg, top_regions, pools, len(history))
         if saved_path or official_path:
             hint = f"  {_c(_DIM, f'saved {os.path.basename(saved_path)}')}" if saved_path else ""
             off = f"  {_c(_DIM, f'· official list: {OFFICIAL_FILENAME} ({len(history)} runs)')}" if official_path else ""
