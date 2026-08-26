@@ -12,17 +12,34 @@ into the image or referenced by `docker-compose.dev.yml`.
   availability per datacenter/region, grouped by GPU pool
   (`runpodctl datacenter list`). Requires `runpodctl` installed + authenticated.
 
+  **Stock ranks.** RunPod reports availability only as a coarse category — never
+  an exact GPU count — so each rank maps to an approximate count range (edit the
+  `RANKS` constant to tune):
+
+  | rank   | ≈ GPUs | meaning                          |
+  |--------|--------|----------------------------------|
+  | None   | 0      | sold out / not offered           |
+  | Low    | 1–4    | a handful — grab it before it's gone |
+  | Medium | 5–9    | comfortably available            |
+  | High   | 10+    | plenty of headroom               |
+
+  Per-datacenter lines show the range (`stock: Medium (5–9)`) and the
+  time-of-day summary averages the representative counts into "approx GPUs
+  available" (e.g. `Medium ~7`).
+
   Each run saves a timestamped snapshot as its own file in a history folder
   (`scripts/gpu_availability_history/`, **committed to git** so runs can be
   compared over time). On every run the script loads **all** snapshot files in
   that folder, merges them, and:
 
-  - prints an **availability-by-time-of-day** summary — average stock per pool
-    bucketed into local-time periods (Night / Morning / Afternoon / Evening), so
-    repeated polling reveals *when* each pool tends to have stock; and
+  - prints an **availability-by-time-of-day** summary — for each pool, average
+    stock bucketed into local-time periods (Night / Morning / Afternoon /
+    Evening) plus its **top 3 regions** (datacenters ranked by average stock
+    across all runs) — so repeated polling reveals *when* and *where* each pool
+    tends to have stock; and
   - (re)writes the merged **official list** — `official.json` — the consolidated
-    view (per-pool time-of-day + best-ever pick) you compare individual runs
-    against.
+    view (per-pool time-of-day, top regions, and best-ever pick) you compare
+    individual runs against.
 
   ```
   scripts/gpu_availability_history/

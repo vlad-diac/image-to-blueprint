@@ -1,7 +1,29 @@
 {
-  "runs": 7,
+  "runs": 10,
   "first_run": "2026-08-25T11:07:29+00:00",
-  "last_run": "2026-08-26T06:21:22+00:00",
+  "last_run": "2026-08-26T15:40:28+00:00",
+  "rank_ranges": {
+    "None": {
+      "min": 0,
+      "max": 0,
+      "approx": 0
+    },
+    "Low": {
+      "min": 1,
+      "max": 4,
+      "approx": 2
+    },
+    "Medium": {
+      "min": 5,
+      "max": 9,
+      "approx": 7
+    },
+    "High": {
+      "min": 10,
+      "max": null,
+      "approx": 14
+    }
+  },
   "pools": [
     "ADA_32_PRO",
     "ADA_48_PRO",
@@ -11,9 +33,9 @@
   "time_of_day": {
     "period_samples": {
       "Night": 0,
-      "Morning": 4,
+      "Morning": 6,
       "Afternoon": 3,
-      "Evening": 0
+      "Evening": 1
     },
     "pools": {
       "ADA_32_PRO": {
@@ -22,16 +44,16 @@
           "samples": 0
         },
         "Morning": {
-          "avg": 1.0,
-          "samples": 4
+          "avg": 2.0,
+          "samples": 6
         },
         "Afternoon": {
-          "avg": 1.0,
+          "avg": 2.0,
           "samples": 3
         },
         "Evening": {
-          "avg": null,
-          "samples": 0
+          "avg": 2.0,
+          "samples": 1
         }
       },
       "ADA_48_PRO": {
@@ -40,16 +62,16 @@
           "samples": 0
         },
         "Morning": {
-          "avg": 1.0,
-          "samples": 4
+          "avg": 2.0,
+          "samples": 6
         },
         "Afternoon": {
-          "avg": 1.0,
+          "avg": 2.0,
           "samples": 3
         },
         "Evening": {
-          "avg": null,
-          "samples": 0
+          "avg": 0.0,
+          "samples": 1
         }
       },
       "ADA_80_PRO": {
@@ -58,16 +80,16 @@
           "samples": 0
         },
         "Morning": {
-          "avg": 2.0,
-          "samples": 4
+          "avg": 7.0,
+          "samples": 6
         },
         "Afternoon": {
-          "avg": 2.0,
+          "avg": 7.0,
           "samples": 3
         },
         "Evening": {
-          "avg": null,
-          "samples": 0
+          "avg": 7.0,
+          "samples": 1
         }
       },
       "BLACKWELL_96": {
@@ -76,16 +98,16 @@
           "samples": 0
         },
         "Morning": {
-          "avg": 1.0,
-          "samples": 4
+          "avg": 2.0,
+          "samples": 6
         },
         "Afternoon": {
-          "avg": 1.0,
+          "avg": 2.0,
           "samples": 3
         },
         "Evening": {
-          "avg": null,
-          "samples": 0
+          "avg": 2.0,
+          "samples": 1
         }
       }
     }
@@ -95,80 +117,80 @@
       {
         "dc": "EU-CZ-1",
         "location": "Europe",
-        "avg": 1.0,
-        "samples": 7
+        "avg": 2.0,
+        "samples": 10
       },
       {
         "dc": "EU-RO-1",
         "location": "Europe",
-        "avg": 1.0,
-        "samples": 2
+        "avg": 1.6,
+        "samples": 5
       },
       {
         "dc": "EUR-IS-1",
         "location": "Europe",
-        "avg": 0.5,
-        "samples": 2
+        "avg": 0.4,
+        "samples": 5
       }
     ],
     "ADA_48_PRO": [
       {
         "dc": "EUR-IS-2",
         "location": "Europe",
-        "avg": 1.0,
-        "samples": 6
+        "avg": 1.7777777777777777,
+        "samples": 9
       },
       {
         "dc": "OC-AU-1",
         "location": "Australia",
-        "avg": 1.0,
-        "samples": 3
+        "avg": 1.6666666666666667,
+        "samples": 6
       },
       {
         "dc": "US-MO-1",
         "location": "United States",
-        "avg": 1.0,
-        "samples": 2
+        "avg": 1.6,
+        "samples": 5
       }
     ],
     "ADA_80_PRO": [
       {
         "dc": "AP-IN-1",
         "location": "India",
-        "avg": 2.0,
-        "samples": 7
-      },
-      {
-        "dc": "AP-JP-1",
-        "location": "Japan",
-        "avg": 1.0,
-        "samples": 2
+        "avg": 7.0,
+        "samples": 10
       },
       {
         "dc": "CA-MTL-1",
         "location": "Canada",
-        "avg": 1.0,
-        "samples": 2
+        "avg": 2.0,
+        "samples": 5
+      },
+      {
+        "dc": "US-GA-2",
+        "location": "United States",
+        "avg": 2.0,
+        "samples": 5
       }
     ],
     "BLACKWELL_96": [
       {
-        "dc": "EU-CZ-1",
+        "dc": "EU-RO-1",
         "location": "Europe",
-        "avg": 1.0,
+        "avg": 2.0,
+        "samples": 6
+      },
+      {
+        "dc": "US-NC-1",
+        "location": "United States",
+        "avg": 2.0,
         "samples": 5
       },
       {
-        "dc": "EU-RO-1",
-        "location": "Europe",
-        "avg": 1.0,
-        "samples": 3
-      },
-      {
-        "dc": "EUR-IS-1",
-        "location": "Europe",
-        "avg": 1.0,
-        "samples": 3
+        "dc": "US-NC-2",
+        "location": "United States",
+        "avg": 2.0,
+        "samples": 5
       }
     ]
   },

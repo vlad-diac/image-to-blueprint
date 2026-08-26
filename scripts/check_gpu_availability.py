@@ -4,7 +4,10 @@ Check RunPod GPU availability per datacenter/region, grouped by GPU pool.
 
 Uses `runpodctl datacenter list`, which returns every datacenter with its
 per-GPU `stockStatus` (High/Medium/Low/None) in one call — the same source
-worker/scripts/deploy.sh already relies on.
+worker/scripts/deploy.sh already relies on. RunPod exposes only this coarse
+category, never an exact GPU count, so each rank is mapped to an approximate
+count range (None 0 · Low 1–4 · Medium 5–9 · High 10+; see RANKS) that the
+output surfaces and time-of-day summaries average into "approx GPUs available".
 
 GPU pools are RunPod's own groupings (see the GPU types docs). Each pool below
 maps to the exact `gpuId`s it contains, so matching is unambiguous
@@ -107,9 +110,50 @@ POOLS: dict[str, list[str]] = {
 # Pools checked when none are passed on the command line.
 DEFAULT_POOLS: list[str] = ["ADA_80_PRO", "AMPERE_80", "ADA_48_PRO", "ADA_24"]
 
-# High > Medium > Low > None; unknown/empty sorts last.
-STOCK_RANK = {"high": 3, "medium": 2, "low": 1, "none": 0}
-STOCK_ORDER = ["None", "Low", "Medium", "High"]  # for --min-stock choices
+# RunPod exposes availability only as a coarse category (High/Medium/Low/None) —
+# `runpodctl datacenter list` returns NO exact GPU counts. These ranges are a
+# documented interpretation of what each category roughly means in terms of GPUs
+# available in a datacenter, ordered None < Low < Medium < High. `approx` is the
+# representative count used when averaging across runs (so summaries read in
+# approximate GPUs instead of an abstract 0–3 score). Tune to taste.
+#   name       range        meaning
+#   None       0            sold out / not offered
+#   Low        1–4          a handful — grab it before it's gone
+#   Medium     5–9          comfortably available
+#   High       10+          plenty of headroom
+RANKS: list[dict[str, Any]] = [
+    {"name": "None",   "lo": 0,  "hi": 0,    "approx": 0},
+    {"name": "Low",    "lo": 1,  "hi": 4,    "approx": 2},
+    {"name": "Medium", "lo": 5,  "hi": 9,    "approx": 7},
+    {"name": "High",   "lo": 10, "hi": None, "approx": 14},
+]
+# name(lower) → rank index; index/name lists for lookups + --min-stock choices.
+STOCK_RANK = {r["name"].lower(): i for i, r in enumerate(RANKS)}
+STOCK_ORDER = [r["name"] for r in RANKS]
+
+
+def _range_label(rank_index: int) -> str:
+    """Human range for a rank, e.g. '5–9', '10+', '0'."""
+    r = RANKS[rank_index]
+    if r["hi"] is None:
+        return f"{r['lo']}+"
+    if r["lo"] == r["hi"]:
+        return str(r["lo"])
+    return f"{r['lo']}–{r['hi']}"
+
+
+def _approx_count(rank_index: int) -> int:
+    """Representative GPU count for a stored rank index (0 if unknown)."""
+    return RANKS[rank_index]["approx"] if 0 <= rank_index < len(RANKS) else 0
+
+
+def _count_rank_index(count: float) -> int:
+    """Rank index whose range contains this (approximate) GPU count."""
+    c = max(0, round(count))
+    for i, r in enumerate(RANKS):
+        if r["lo"] <= c <= (r["hi"] if r["hi"] is not None else c):
+            return i
+    return len(RANKS) - 1  # above the top range → highest rank
 
 # Snapshots are bucketed by local hour-of-day into these named periods so
 # repeated polling reveals when each pool tends to have stock.
@@ -145,9 +189,14 @@ def _c(code: str, text: str) -> str:
 
 
 def _stock_str(status: str | None) -> str:
-    label = status or "unknown"
-    code = _STOCK_COLOR.get((status or "").strip().lower())
-    return _c(code, label) if code else label
+    """Colored 'Medium (5–9)' — category plus its approximate GPU-count range."""
+    idx = _stock_rank(status)
+    if idx < 0:
+        return status or "unknown"
+    name = RANKS[idx]["name"]
+    text = f"{name} ({_range_label(idx)})"
+    code = _STOCK_COLOR.get(name.lower())
+    return _c(code, text) if code else text
 
 
 def _which(name: str) -> bool:
@@ -314,33 +363,35 @@ def summarize_report(
     `regions` collapses the pool's GPUs so each datacenter (region) appears once,
     at its best stock across the pool — enough to rank the top regions later.
     """
-    summary: dict[str, dict[str, Any]] = {}
-    for pool, gpus in report.items():
-        best: dict[str, Any] | None = None
-        dc_best: dict[str, dict[str, Any]] = {}  # dc -> best row for this pool
-        for gpu_id, rows in gpus.items():
-            for r in rows:
-                dc = r["dc"]
-                cur = dc_best.get(dc)
-                if cur is None or r["rank"] > cur["rank"]:
-                    dc_best[dc] = {
-                        "dc": dc,
-                        "location": r.get("location") or "",
-                        "rank": r["rank"],
-                        "stock": r["stock"],
-                    }
-                if best is None or r["rank"] > best["rank"]:
-                    best = {**r, "gpu": gpu_id}
-        regions = sorted(dc_best.values(), key=lambda x: (-x["rank"], x["dc"]))
-        summary[pool] = {
-            "best_rank": best["rank"] if best else -1,
-            "best_stock": best["stock"] if best else None,
-            "best_dc": best["dc"] if best else None,
-            "best_gpu": best["gpu"] if best else None,
-            "dc_count": len(dc_best),
-            "regions": regions,
-        }
-    return summary
+    return {pool: _summarize_pool(gpus) for pool, gpus in report.items()}
+
+
+def _summarize_pool(gpus: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+    """Best pick + per-region best stock for one pool's GPUs."""
+    best: dict[str, Any] | None = None
+    dc_best: dict[str, dict[str, Any]] = {}  # dc -> best row for this pool
+    for gpu_id, rows in gpus.items():
+        for r in rows:
+            dc = r["dc"]
+            cur = dc_best.get(dc)
+            if cur is None or r["rank"] > cur["rank"]:
+                dc_best[dc] = {
+                    "dc": dc,
+                    "location": r.get("location") or "",
+                    "rank": r["rank"],
+                    "stock": r["stock"],
+                }
+            if best is None or r["rank"] > best["rank"]:
+                best = {**r, "gpu": gpu_id}
+    regions = sorted(dc_best.values(), key=lambda x: (-x["rank"], x["dc"]))
+    return {
+        "best_rank": best["rank"] if best else -1,
+        "best_stock": best["stock"] if best else None,
+        "best_dc": best["dc"] if best else None,
+        "best_gpu": best["gpu"] if best else None,
+        "dc_count": len(dc_best),
+        "regions": regions,
+    }
 
 
 def make_snapshot(
@@ -431,6 +482,12 @@ def build_official(records: list[dict[str, Any]]) -> dict[str, Any]:
         "runs": len(records),
         "first_run": stamps[0] if stamps else None,
         "last_run": stamps[-1] if stamps else None,
+        # Approximate GPU-count ranges each rank stands for (see RANKS). `avg`
+        # values below are means of `approx` — i.e. approximate GPUs available.
+        "rank_ranges": {
+            r["name"]: {"min": r["lo"], "max": r["hi"], "approx": r["approx"]}
+            for r in RANKS
+        },
         "pools": pools,
         "time_of_day": aggregate_by_time_of_day(records, pools),
         "top_regions": top_regions_by_pool(records, pools),
@@ -466,9 +523,12 @@ def _record_hour(record: dict[str, Any]) -> int | None:
 def aggregate_by_time_of_day(
     records: list[dict[str, Any]], pools: list[str],
 ) -> dict[str, Any]:
-    """pool → period → {'avg': float|None, 'samples': int} over all snapshots."""
+    """pool → period → {'avg': float|None, 'samples': int} over all snapshots.
+
+    `avg` is the mean approximate GPU count (see RANKS) of the pool's best region.
+    """
     period_of = {h: name for name, hours in PERIODS for h in hours}
-    # pool → period → list of best_rank values (clamped to >= 0)
+    # pool → period → list of approx GPU counts for the pool's best region
     acc: dict[str, dict[str, list[int]]] = {
         p: {name: [] for name, _ in PERIODS} for p in pools
     }
@@ -484,7 +544,7 @@ def aggregate_by_time_of_day(
             entry = rec_pools.get(pool)
             if entry is None:
                 continue
-            acc[pool][period].append(max(0, int(entry.get("best_rank", -1))))
+            acc[pool][period].append(_approx_count(max(0, int(entry.get("best_rank", -1)))))
     result: dict[str, Any] = {"period_samples": period_samples, "pools": {}}
     for pool in pools:
         result["pools"][pool] = {
@@ -513,51 +573,53 @@ def _pool_regions(entry: dict[str, Any]) -> list[dict[str, Any]]:
     }]
 
 
+def _accumulate_regions(
+    acc: dict[str, dict[str, Any]], entry: dict[str, Any],
+) -> None:
+    """Fold one snapshot's pool entry into `acc` (dc → {counts, location})."""
+    for reg in _pool_regions(entry):
+        dc = reg.get("dc")
+        if not dc:
+            continue
+        slot = acc.setdefault(dc, {"counts": [], "location": ""})
+        slot["counts"].append(_approx_count(max(0, int(reg.get("rank", -1)))))
+        if reg.get("location"):
+            slot["location"] = reg["location"]
+
+
 def top_regions_by_pool(
     records: list[dict[str, Any]], pools: list[str], top_n: int = 3,
 ) -> dict[str, list[dict[str, Any]]]:
-    """pool → up to top_n regions ranked by avg stock across all snapshots."""
-    # pool → dc → {ranks, location}
+    """pool → up to top_n regions ranked by avg approx GPU count across all runs."""
+    # pool → dc → {counts, location}
     acc: dict[str, dict[str, dict[str, Any]]] = {p: {} for p in pools}
     for record in records:
         rec_pools = record.get("pools") or {}
         for pool in pools:
             entry = rec_pools.get(pool)
-            if entry is None:
-                continue
-            for reg in _pool_regions(entry):
-                dc = reg.get("dc")
-                if not dc:
-                    continue
-                slot = acc[pool].setdefault(dc, {"ranks": [], "location": ""})
-                slot["ranks"].append(max(0, int(reg.get("rank", -1))))
-                if reg.get("location"):
-                    slot["location"] = reg["location"]
+            if entry is not None:
+                _accumulate_regions(acc[pool], entry)
     result: dict[str, list[dict[str, Any]]] = {}
     for pool in pools:
         regs = [
             {
                 "dc": dc,
                 "location": slot["location"],
-                "avg": sum(slot["ranks"]) / len(slot["ranks"]),
-                "samples": len(slot["ranks"]),
+                "avg": sum(slot["counts"]) / len(slot["counts"]),
+                "samples": len(slot["counts"]),
             }
             for dc, slot in acc[pool].items()
-            if slot["ranks"]
+            if slot["counts"]
         ]
         regs.sort(key=lambda r: (-r["avg"], -r["samples"], r["dc"]))
         result[pool] = regs[:top_n]
     return result
 
 
-def _rank_label(score: float) -> str:
-    return STOCK_ORDER[max(0, min(3, round(score)))]
-
-
-def _avg_cell(score: float) -> str:
-    """Colored 'Label 2.5' for an average rank score."""
-    label = _rank_label(score)
-    text = f"{label} {score:.1f}"
+def _avg_cell(count: float) -> str:
+    """Colored 'Medium ~7' for an average approximate GPU count."""
+    label = RANKS[_count_rank_index(count)]["name"]
+    text = f"{label} ~{count:.0f}"
     code = _STOCK_COLOR.get(label.lower())
     return _c(code, text) if code else text
 
@@ -580,7 +642,9 @@ def print_time_of_day(
 
     def cell_text(pool: str, name: str) -> str:
         avg = agg["pools"][pool][name]["avg"]
-        return "—" if avg is None else f"{_rank_label(avg)} {avg:.1f}"
+        if avg is None:
+            return "—"
+        return f"{RANKS[_count_rank_index(avg)]['name']} ~{avg:.0f}"
 
     rows = [[pool, *(cell_text(pool, name) for name in names)] for pool in pools]
     widths = [
@@ -593,14 +657,14 @@ def print_time_of_day(
         cells = [_c(_CYAN, row[0].ljust(widths[0]))]
         for i, name in enumerate(names, start=1):
             avg = agg["pools"][pool][name]["avg"]
-            code = _STOCK_COLOR.get(_rank_label(avg).lower()) if avg is not None else None
+            code = _STOCK_COLOR.get(RANKS[_count_rank_index(avg)]["name"].lower()) \
+                if avg is not None else None
             text = row[i].ljust(widths[i])
             cells.append(_c(code, text) if code else text)
         print("  " + "  ".join(cells))
         _print_top_regions(top_regions.get(pool, []), indent=widths[0] + 4)
-    legend = ("avg stock: None 0 · Low 1 · Medium 2 · High 3 · "
-              "top regions ranked by avg over all runs (n× samples)")
-    print(f"  {_c(_DIM, legend)}")
+    ranges = " · ".join(f"{r['name']} {_range_label(i)}" for i, r in enumerate(RANKS))
+    print(f"  {_c(_DIM, f'~ = avg approx GPUs available over all runs; ranges: {ranges}')}")
 
 
 def _print_top_regions(regions: list[dict[str, Any]], indent: int) -> None:
