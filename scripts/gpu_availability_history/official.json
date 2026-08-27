@@ -1,7 +1,7 @@
 {
-  "runs": 10,
+  "runs": 11,
   "first_run": "2026-08-25T11:07:29+00:00",
-  "last_run": "2026-08-26T15:40:28+00:00",
+  "last_run": "2026-08-27T04:36:20+00:00",
   "rank_ranges": {
     "None": {
       "min": 0,
@@ -33,7 +33,7 @@
   "time_of_day": {
     "period_samples": {
       "Night": 0,
-      "Morning": 6,
+      "Morning": 7,
       "Afternoon": 3,
       "Evening": 1
     },
@@ -45,7 +45,7 @@
         },
         "Morning": {
           "avg": 2.0,
-          "samples": 6
+          "samples": 7
         },
         "Afternoon": {
           "avg": 2.0,
@@ -63,7 +63,7 @@
         },
         "Morning": {
           "avg": 2.0,
-          "samples": 6
+          "samples": 7
         },
         "Afternoon": {
           "avg": 2.0,
@@ -81,7 +81,7 @@
         },
         "Morning": {
           "avg": 7.0,
-          "samples": 6
+          "samples": 7
         },
         "Afternoon": {
           "avg": 7.0,
@@ -99,7 +99,7 @@
         },
         "Morning": {
           "avg": 2.0,
-          "samples": 6
+          "samples": 7
         },
         "Afternoon": {
           "avg": 2.0,
@@ -118,39 +118,39 @@
         "dc": "EU-CZ-1",
         "location": "Europe",
         "avg": 2.0,
-        "samples": 10
+        "samples": 11
       },
       {
         "dc": "EU-RO-1",
         "location": "Europe",
-        "avg": 1.6,
-        "samples": 5
+        "avg": 1.3333333333333333,
+        "samples": 6
       },
       {
         "dc": "EUR-IS-1",
         "location": "Europe",
-        "avg": 0.4,
-        "samples": 5
+        "avg": 0.3333333333333333,
+        "samples": 6
       }
     ],
     "ADA_48_PRO": [
       {
         "dc": "EUR-IS-2",
         "location": "Europe",
-        "avg": 1.7777777777777777,
-        "samples": 9
+        "avg": 1.8,
+        "samples": 10
       },
       {
         "dc": "OC-AU-1",
         "location": "Australia",
-        "avg": 1.6666666666666667,
-        "samples": 6
+        "avg": 1.7142857142857142,
+        "samples": 7
       },
       {
         "dc": "US-MO-1",
         "location": "United States",
-        "avg": 1.6,
-        "samples": 5
+        "avg": 1.6666666666666667,
+        "samples": 6
       }
     ],
     "ADA_80_PRO": [
@@ -158,19 +158,19 @@
         "dc": "AP-IN-1",
         "location": "India",
         "avg": 7.0,
-        "samples": 10
+        "samples": 11
       },
       {
         "dc": "CA-MTL-1",
         "location": "Canada",
         "avg": 2.0,
-        "samples": 5
+        "samples": 6
       },
       {
         "dc": "US-GA-2",
         "location": "United States",
         "avg": 2.0,
-        "samples": 5
+        "samples": 6
       }
     ],
     "BLACKWELL_96": [
@@ -178,19 +178,19 @@
         "dc": "EU-RO-1",
         "location": "Europe",
         "avg": 2.0,
-        "samples": 6
-      },
-      {
-        "dc": "US-NC-1",
-        "location": "United States",
-        "avg": 2.0,
-        "samples": 5
+        "samples": 7
       },
       {
         "dc": "US-NC-2",
         "location": "United States",
         "avg": 2.0,
-        "samples": 5
+        "samples": 6
+      },
+      {
+        "dc": "US-NE-1",
+        "location": "United States",
+        "avg": 2.0,
+        "samples": 6
       }
     ]
   },
