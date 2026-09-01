@@ -88,6 +88,79 @@ export function saveConfig(body: RunConfigUpsertBody): Promise<RunConfigDto> {
   });
 }
 
+// ── GPU availability (from scripts/check_gpu_availability.py history) ──────────
+export interface RankSpec {
+  name: string;
+  lo: number;
+  hi: number | null;
+  approx: number;
+}
+
+export interface RegionStat {
+  dc: string;
+  location: string;
+  avgApprox: number;
+  samples: number;
+  share: number;
+}
+
+export interface PeriodStat {
+  period: string;
+  avg: number | null;
+  samples: number;
+}
+
+export interface PoolStat {
+  pool: string;
+  samples: number;
+  avgApprox: number;
+  availability: number;
+  bestEver: {
+    rank: number;
+    stock: string | null;
+    dc: string | null;
+    gpu: string | null;
+    seenAt: string | null;
+  } | null;
+  latest: {
+    approx: number;
+    stock: string | null;
+    dc: string | null;
+    at: string | null;
+  } | null;
+  byTimeOfDay: PeriodStat[];
+  regions: RegionStat[];
+  timeseries: { t: string; approx: number; rank: string }[];
+}
+
+export interface AvailabilityDto {
+  runs: number;
+  firstRun: string | null;
+  lastRun: string | null;
+  rankRanges: RankSpec[];
+  periods: string[];
+  periodSamples: Record<string, number>;
+  catalog: string[];
+  overall: {
+    avgApprox: number;
+    rankDistribution: { rank: string; count: number }[];
+  };
+  pools: PoolStat[];
+}
+
+export function fetchAvailability(): Promise<AvailabilityDto> {
+  return fetchJson<AvailabilityDto>('/availability');
+}
+
+/** Run the check script for these pools on the server, then return fresh data. */
+export function checkAvailability(pools: string[]): Promise<AvailabilityDto> {
+  return fetchJson<AvailabilityDto>('/availability/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pools }),
+  });
+}
+
 /** Build FormData for POST /runs from a preset (Demo or advanced). */
 export function runFormData(image: File, preset: DemoPreset): FormData {
   const fd = new FormData();

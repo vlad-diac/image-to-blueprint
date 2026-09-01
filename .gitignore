@@ -8,6 +8,9 @@ input/
 
 .env
 apps/api/node_modules
+apps/api/dist
+apps/web/dist
 apps/api/.env
 apps/web/node_modules
 apps/web/.env
+output/

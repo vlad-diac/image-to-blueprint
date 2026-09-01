@@ -1,0 +1,128 @@
+{
+  "timestamp": "2026-08-31T06:06:22+00:00",
+  "local_time": "2026-08-31T09:06:22+03:00",
+  "hour": 9,
+  "region": null,
+  "pools": {
+    "ADA_48_PRO": {
+      "best_rank": 2,
+      "best_stock": "Medium",
+      "best_dc": "US-TX-4",
+      "best_gpu": "NVIDIA L40S",
+      "dc_count": 12,
+      "regions": [
+        {
+          "dc": "US-TX-4",
+          "location": "United States",
+          "rank": 2,
+          "stock": "Medium"
+        },
+        {
+          "dc": "EU-NL-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EUR-IS-2",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "OC-AU-1",
+          "location": "Australia",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-KS-2",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-MO-1",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-NC-1",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-TX-3",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-WA-1",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-CA-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-IL-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-KS-3",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    },
+    "ADA_32_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA GeForce RTX 5090",
+      "dc_count": 5,
+      "regions": [
+        {
+          "dc": "EU-CZ-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EU-RO-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EUR-IS-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-IS-2",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-NO-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    }
+  }
+}

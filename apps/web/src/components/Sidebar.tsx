@@ -1,4 +1,10 @@
+import { NavLink } from 'react-router-dom';
 import type { RunConfigDto } from '../lib/api';
+
+const NAV = [
+  { to: '/', label: 'Image tool', end: true },
+  { to: '/availability', label: 'GPU availability', end: false },
+] as const;
 
 type SidebarProps = {
   open: boolean;
@@ -56,6 +62,29 @@ export function Sidebar({
             Close
           </button>
         </div>
+
+        <nav className="space-y-1">
+          <div className="px-1 text-[10px] uppercase tracking-widest text-slate-500">
+            Navigate
+          </div>
+          {NAV.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              onClick={onClose}
+              className={({ isActive }) =>
+                `block rounded-lg px-3 py-2 text-sm ${
+                  isActive
+                    ? 'bg-sky-950/60 text-sky-200 ring-1 ring-sky-800/60'
+                    : 'text-slate-300 hover:bg-slate-800/70'
+                }`
+              }
+            >
+              {item.label}
+            </NavLink>
+          ))}
+        </nav>
 
         <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/80 p-4">
           <div>

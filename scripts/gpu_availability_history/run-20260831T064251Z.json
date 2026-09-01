@@ -1,0 +1,89 @@
+{
+  "timestamp": "2026-08-31T06:42:51+00:00",
+  "local_time": "2026-08-31T09:42:51+03:00",
+  "hour": 9,
+  "region": null,
+  "pools": {
+    "ADA_24": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA GeForce RTX 4090",
+      "dc_count": 12,
+      "regions": [
+        {
+          "dc": "EU-CZ-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EU-RO-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EUR-IS-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EUR-IS-2",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-CA-2",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-MO-2",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "CA-MTL-3",
+          "location": "Canada",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-NO-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-GA-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-IL-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-NC-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-TX-3",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    }
+  }
+}

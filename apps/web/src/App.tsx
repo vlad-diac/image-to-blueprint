@@ -1,9 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { MainLayout } from './MainLayout';
 import { Sidebar } from './components/Sidebar';
 import { useDemoMode } from './hooks/useDemoMode';
 import { fetchConfig } from './lib/api';
+import { AvailabilityPage } from './pages/AvailabilityPage';
 
 export default function App() {
   const [demoMode, setDemoMode] = useDemoMode();
@@ -41,11 +43,22 @@ export default function App() {
             : undefined
         }
       />
-      <MainLayout
-        demoMode={demoMode}
-        onOpenSettings={() => setSidebarOpen(true)}
-        config={configQuery.data}
-      />
+      <Routes>
+        <Route
+          path="/"
+          element={
+            <MainLayout
+              demoMode={demoMode}
+              onOpenSettings={() => setSidebarOpen(true)}
+              config={configQuery.data}
+            />
+          }
+        />
+        <Route
+          path="/availability"
+          element={<AvailabilityPage onOpenSettings={() => setSidebarOpen(true)} />}
+        />
+      </Routes>
     </div>
   );
 }

@@ -1,0 +1,59 @@
+{
+  "timestamp": "2026-08-31T07:29:46+00:00",
+  "local_time": "2026-08-31T10:29:46+03:00",
+  "hour": 10,
+  "region": null,
+  "pools": {
+    "AMPERE_48": {
+      "best_rank": 3,
+      "best_stock": "High",
+      "best_dc": "EU-SE-1",
+      "best_gpu": "NVIDIA A40",
+      "dc_count": 7,
+      "regions": [
+        {
+          "dc": "EU-SE-1",
+          "location": "Europe",
+          "rank": 3,
+          "stock": "High"
+        },
+        {
+          "dc": "CA-MTL-1",
+          "location": "Canada",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-TX-1",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "CA-MTL-3",
+          "location": "Canada",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EU-RO-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-KS-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-MO-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    }
+  }
+}

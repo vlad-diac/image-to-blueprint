@@ -1,0 +1,215 @@
+{
+  "timestamp": "2026-08-28T15:01:35+00:00",
+  "local_time": "2026-08-28T18:01:35+03:00",
+  "hour": 18,
+  "region": null,
+  "pools": {
+    "ADA_80_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "AP-IN-1",
+      "best_gpu": "NVIDIA H100 80GB HBM3",
+      "dc_count": 13,
+      "regions": [
+        {
+          "dc": "AP-IN-1",
+          "location": "India",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "AP-IN-2",
+          "location": "India",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "AP-JP-1",
+          "location": "Japan",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "CA-MTL-1",
+          "location": "Canada",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EU-FR-1",
+          "location": "France",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EU-NL-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-IS-3",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-NO-2",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-CA-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-GA-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-KS-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-MO-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-NE-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    },
+    "ADA_48_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-NL-1",
+      "best_gpu": "NVIDIA L40S",
+      "dc_count": 12,
+      "regions": [
+        {
+          "dc": "EU-NL-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EUR-IS-2",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-TX-3",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "US-TX-4",
+          "location": "United States",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "OC-AU-1",
+          "location": "Australia",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-CA-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-IL-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-KS-2",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-KS-3",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-MO-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-NC-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "US-WA-1",
+          "location": "United States",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    },
+    "ADA_32_PRO": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA GeForce RTX 5090",
+      "dc_count": 5,
+      "regions": [
+        {
+          "dc": "EU-CZ-1",
+          "location": "Europe",
+          "rank": 1,
+          "stock": "Low"
+        },
+        {
+          "dc": "EU-RO-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-IS-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-IS-2",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        },
+        {
+          "dc": "EUR-NO-1",
+          "location": "Europe",
+          "rank": -1,
+          "stock": ""
+        }
+      ]
+    }
+  }
+}

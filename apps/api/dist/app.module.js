@@ -10,6 +10,7 @@ exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
 const schedule_1 = require("@nestjs/schedule");
+const availability_module_1 = require("./availability/availability.module");
 const run_config_module_1 = require("./config/run-config.module");
 const prisma_module_1 = require("./prisma/prisma.module");
 const runpod_module_1 = require("./runpod/runpod.module");
@@ -26,6 +27,7 @@ exports.AppModule = AppModule = __decorate([
             run_config_module_1.RunConfigModule,
             runpod_module_1.RunpodModule,
             runs_module_1.RunsModule,
+            availability_module_1.AvailabilityModule,
         ],
     })
 ], AppModule);

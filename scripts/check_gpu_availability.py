@@ -720,7 +720,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.list_pools:
-        print_pools()
+        if args.json:
+            print(json.dumps({"pools": {p: POOLS[p] for p in POOLS}}, indent=2))
+        else:
+            print_pools()
         return 0
 
     pools = resolve_pools(args.pools)

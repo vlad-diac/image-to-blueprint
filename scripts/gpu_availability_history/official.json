@@ -1,7 +1,7 @@
 {
-  "runs": 11,
+  "runs": 19,
   "first_run": "2026-08-25T11:07:29+00:00",
-  "last_run": "2026-08-27T04:36:20+00:00",
+  "last_run": "2026-08-31T07:29:46+00:00",
   "rank_ranges": {
     "None": {
       "min": 0,
@@ -25,19 +25,39 @@
     }
   },
   "pools": [
+    "ADA_24",
     "ADA_32_PRO",
     "ADA_48_PRO",
     "ADA_80_PRO",
+    "AMPERE_48",
     "BLACKWELL_96"
   ],
   "time_of_day": {
     "period_samples": {
       "Night": 0,
-      "Morning": 7,
+      "Morning": 14,
       "Afternoon": 3,
-      "Evening": 1
+      "Evening": 2
     },
     "pools": {
+      "ADA_24": {
+        "Night": {
+          "avg": null,
+          "samples": 0
+        },
+        "Morning": {
+          "avg": 2.0,
+          "samples": 1
+        },
+        "Afternoon": {
+          "avg": null,
+          "samples": 0
+        },
+        "Evening": {
+          "avg": null,
+          "samples": 0
+        }
+      },
       "ADA_32_PRO": {
         "Night": {
           "avg": null,
@@ -45,7 +65,7 @@
         },
         "Morning": {
           "avg": 2.0,
-          "samples": 7
+          "samples": 12
         },
         "Afternoon": {
           "avg": 2.0,
@@ -53,7 +73,7 @@
         },
         "Evening": {
           "avg": 2.0,
-          "samples": 1
+          "samples": 2
         }
       },
       "ADA_48_PRO": {
@@ -62,16 +82,16 @@
           "samples": 0
         },
         "Morning": {
-          "avg": 2.0,
-          "samples": 7
+          "avg": 3.6666666666666665,
+          "samples": 12
         },
         "Afternoon": {
           "avg": 2.0,
           "samples": 3
         },
         "Evening": {
-          "avg": 0.0,
-          "samples": 1
+          "avg": 1.0,
+          "samples": 2
         }
       },
       "ADA_80_PRO": {
@@ -80,16 +100,34 @@
           "samples": 0
         },
         "Morning": {
-          "avg": 7.0,
-          "samples": 7
+          "avg": 6.0,
+          "samples": 10
         },
         "Afternoon": {
           "avg": 7.0,
           "samples": 3
         },
         "Evening": {
-          "avg": 7.0,
+          "avg": 4.5,
+          "samples": 2
+        }
+      },
+      "AMPERE_48": {
+        "Night": {
+          "avg": null,
+          "samples": 0
+        },
+        "Morning": {
+          "avg": 14.0,
           "samples": 1
+        },
+        "Afternoon": {
+          "avg": null,
+          "samples": 0
+        },
+        "Evening": {
+          "avg": null,
+          "samples": 0
         }
       },
       "BLACKWELL_96": {
@@ -99,7 +137,7 @@
         },
         "Morning": {
           "avg": 2.0,
-          "samples": 7
+          "samples": 8
         },
         "Afternoon": {
           "avg": 2.0,
@@ -113,64 +151,104 @@
     }
   },
   "top_regions": {
+    "ADA_24": [
+      {
+        "dc": "EU-CZ-1",
+        "location": "Europe",
+        "avg": 2.0,
+        "samples": 1
+      },
+      {
+        "dc": "EU-RO-1",
+        "location": "Europe",
+        "avg": 2.0,
+        "samples": 1
+      },
+      {
+        "dc": "EUR-IS-1",
+        "location": "Europe",
+        "avg": 2.0,
+        "samples": 1
+      }
+    ],
     "ADA_32_PRO": [
       {
         "dc": "EU-CZ-1",
         "location": "Europe",
         "avg": 2.0,
-        "samples": 11
+        "samples": 17
       },
       {
         "dc": "EU-RO-1",
         "location": "Europe",
         "avg": 1.3333333333333333,
-        "samples": 6
+        "samples": 12
       },
       {
         "dc": "EUR-IS-1",
         "location": "Europe",
         "avg": 0.3333333333333333,
-        "samples": 6
+        "samples": 12
       }
     ],
     "ADA_48_PRO": [
       {
+        "dc": "US-TX-4",
+        "location": "United States",
+        "avg": 3.5,
+        "samples": 12
+      },
+      {
         "dc": "EUR-IS-2",
         "location": "Europe",
-        "avg": 1.8,
-        "samples": 10
+        "avg": 1.875,
+        "samples": 16
       },
       {
         "dc": "OC-AU-1",
         "location": "Australia",
-        "avg": 1.7142857142857142,
-        "samples": 7
-      },
-      {
-        "dc": "US-MO-1",
-        "location": "United States",
-        "avg": 1.6666666666666667,
-        "samples": 6
+        "avg": 1.6923076923076923,
+        "samples": 13
       }
     ],
     "ADA_80_PRO": [
       {
         "dc": "AP-IN-1",
         "location": "India",
-        "avg": 7.0,
-        "samples": 11
+        "avg": 6.0,
+        "samples": 15
+      },
+      {
+        "dc": "CA-MTL-1",
+        "location": "Canada",
+        "avg": 1.8,
+        "samples": 10
+      },
+      {
+        "dc": "US-GA-2",
+        "location": "United States",
+        "avg": 1.8,
+        "samples": 10
+      }
+    ],
+    "AMPERE_48": [
+      {
+        "dc": "EU-SE-1",
+        "location": "Europe",
+        "avg": 14.0,
+        "samples": 1
       },
       {
         "dc": "CA-MTL-1",
         "location": "Canada",
         "avg": 2.0,
-        "samples": 6
+        "samples": 1
       },
       {
-        "dc": "US-GA-2",
+        "dc": "US-TX-1",
         "location": "United States",
         "avg": 2.0,
-        "samples": 6
+        "samples": 1
       }
     ],
     "BLACKWELL_96": [
@@ -178,19 +256,19 @@
         "dc": "EU-RO-1",
         "location": "Europe",
         "avg": 2.0,
-        "samples": 7
+        "samples": 8
       },
       {
         "dc": "US-NC-2",
         "location": "United States",
         "avg": 2.0,
-        "samples": 6
+        "samples": 7
       },
       {
         "dc": "US-NE-1",
         "location": "United States",
         "avg": 2.0,
-        "samples": 6
+        "samples": 7
       }
     ]
   },
@@ -210,11 +288,11 @@
       "seen_at": "2026-08-25T11:07:29+00:00"
     },
     "ADA_48_PRO": {
-      "best_rank": 1,
-      "best_stock": "Low",
-      "best_dc": "EUR-IS-2",
+      "best_rank": 2,
+      "best_stock": "Medium",
+      "best_dc": "US-TX-4",
       "best_gpu": "NVIDIA L40S",
-      "seen_at": "2026-08-25T11:07:29+00:00"
+      "seen_at": "2026-08-31T06:06:22+00:00"
     },
     "ADA_32_PRO": {
       "best_rank": 1,
@@ -222,6 +300,20 @@
       "best_dc": "EU-CZ-1",
       "best_gpu": "NVIDIA GeForce RTX 5090",
       "seen_at": "2026-08-25T11:07:29+00:00"
+    },
+    "ADA_24": {
+      "best_rank": 1,
+      "best_stock": "Low",
+      "best_dc": "EU-CZ-1",
+      "best_gpu": "NVIDIA GeForce RTX 4090",
+      "seen_at": "2026-08-31T06:42:51+00:00"
+    },
+    "AMPERE_48": {
+      "best_rank": 3,
+      "best_stock": "High",
+      "best_dc": "EU-SE-1",
+      "best_gpu": "NVIDIA A40",
+      "seen_at": "2026-08-31T07:29:46+00:00"
     }
   }
 }
