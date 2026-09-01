@@ -61,6 +61,7 @@ class Fp8Linear(nn.Module):
         out_features: int,
         has_bias: bool,
         compute_dtype: torch.dtype = torch.bfloat16,
+        device: torch.device | None = None,
     ) -> None:
         super().__init__()
         self.in_features = in_features
@@ -69,14 +70,16 @@ class Fp8Linear(nn.Module):
 
         # weight stays FP8; requires_grad=False (no training).
         # These are placeholder shapes — overwritten by load_state_dict(assign=True).
+        # Created on `device` so any key that ISN'T in the state dict still ends up
+        # on the right device instead of stranding a CPU tensor on a GPU model.
         self.weight = nn.Parameter(
-            torch.empty(out_features, in_features, dtype=torch.float8_e4m3fn),
+            torch.empty(out_features, in_features, dtype=torch.float8_e4m3fn, device=device),
             requires_grad=False,
         )
-        self.register_buffer("scale_weight", torch.ones((), dtype=torch.float32))
+        self.register_buffer("scale_weight", torch.ones((), dtype=torch.float32, device=device))
         if has_bias:
             self.bias = nn.Parameter(
-                torch.empty(out_features, dtype=compute_dtype),
+                torch.empty(out_features, dtype=compute_dtype, device=device),
                 requires_grad=False,
             )
         else:
@@ -195,14 +198,16 @@ def inspect_fp8_file(fp8_path: str | Path, head: int = 8) -> dict:
 def _stream_dequantized_state_dict(
     fp8_path: Path,
     compute_dtype: torch.dtype,
+    device: torch.device = torch.device("cpu"),
 ) -> dict[str, torch.Tensor]:
     """
     EAGER: walk the file, dequantize every FP8 weight immediately
     (weight.to(compute_dtype) * scale_weight), strip prefix, return plain BF16 dict.
+    Tensors are read straight onto `device`.
     """
     from safetensors import safe_open
 
-    with safe_open(str(fp8_path), framework="pt") as f:
+    with safe_open(str(fp8_path), framework="pt", device=str(device)) as f:
         all_keys = set(f.keys())
         prefix = _detect_fp8_prefix(list(all_keys))
 
@@ -211,7 +216,7 @@ def _stream_dequantized_state_dict(
             return {k: f.get_tensor(k) for k in all_keys}
 
         marker_dtype = f.get_tensor(prefix + _FP8_MARKER_SUFFIX).dtype
-        logger.info(
+        logger.debug(
             "FP8 scaled prefix=%r  marker dtype=%s  target compute dtype=%s",
             prefix, marker_dtype, compute_dtype,
         )
@@ -247,6 +252,7 @@ def _stream_dequantized_state_dict(
 def _stream_raw_state_dict(
     fp8_path: Path,
     compute_dtype: torch.dtype,
+    device: torch.device = torch.device("cpu"),
 ) -> dict[str, torch.Tensor]:
     """
     LAZY: walk the file without dequantizing FP8 weights. Returns:
@@ -254,10 +260,11 @@ def _stream_raw_state_dict(
       - scale_weight tensors as float32  (consumed by Fp8Linear.scale_weight)
       - all other tensors cast to compute_dtype
     input scales (.scale_input) are dropped — they are always 1.0 in this file.
+    Tensors are read straight onto `device`.
     """
     from safetensors import safe_open
 
-    with safe_open(str(fp8_path), framework="pt") as f:
+    with safe_open(str(fp8_path), framework="pt", device=str(device)) as f:
         all_keys = set(f.keys())
         prefix = _detect_fp8_prefix(list(all_keys))
 
@@ -270,7 +277,7 @@ def _stream_raw_state_dict(
             return sd
 
         marker_dtype = f.get_tensor(prefix + _FP8_MARKER_SUFFIX).dtype
-        logger.info(
+        logger.debug(
             "FP8 scaled prefix=%r  marker dtype=%s  (lazy — keeping FP8 in memory)",
             prefix, marker_dtype,
         )
@@ -320,6 +327,7 @@ def _replace_fp8_linears(
     model: nn.Module,
     fp8_layer_names: set[str],
     compute_dtype: torch.dtype,
+    device: torch.device | None = None,
 ) -> int:
     """
     Walk `model` and replace each nn.Linear whose full dotted name is in
@@ -352,6 +360,7 @@ def _replace_fp8_linears(
                 out_features=orig.out_features,
                 has_bias=orig.bias is not None,
                 compute_dtype=compute_dtype,
+                device=device,
             ),
         )
         replaced += 1
@@ -363,17 +372,21 @@ def _replace_fp8_linears(
 # Utility: materialize any remaining meta tensors after load_state_dict
 # ---------------------------------------------------------------------------
 
-def _materialize_meta_tensors(model: nn.Module, dtype: torch.dtype) -> int:
+def _materialize_meta_tensors(
+    model: nn.Module,
+    dtype: torch.dtype,
+    device: torch.device | None = None,
+) -> int:
     n_fixed = 0
     for name, mod in model.named_modules():
         for pname, p in list(mod._parameters.items()):
             if p is not None and p.device.type == "meta":
-                mod._parameters[pname] = nn.Parameter(torch.zeros(p.shape, dtype=dtype))
+                mod._parameters[pname] = nn.Parameter(torch.zeros(p.shape, dtype=dtype, device=device))
                 logger.warning("Materialized missing parameter as zeros: %s.%s", name, pname)
                 n_fixed += 1
         for bname, b in list(mod._buffers.items()):
             if b is not None and b.device.type == "meta":
-                mod._buffers[bname] = torch.zeros(b.shape, dtype=dtype)
+                mod._buffers[bname] = torch.zeros(b.shape, dtype=dtype, device=device)
                 logger.warning("Materialized missing buffer as zeros: %s.%s", name, bname)
                 n_fixed += 1
     return n_fixed
@@ -388,6 +401,7 @@ def load_qwen25vl_from_fp8_scaled(
     config_source: str,
     compute_dtype: torch.dtype = torch.bfloat16,
     lazy: bool = True,
+    device: torch.device = torch.device("cpu"),
 ):
     """
     Load a ComfyUI FP8-scaled safetensors file into a
@@ -402,11 +416,12 @@ def load_qwen25vl_from_fp8_scaled(
                         dequantize per-layer during forward (matches ComfyUI,
                         ~7 GB VRAM for the text encoder).
                         False → dequantize everything at load time (~14 GB).
+        device:         Device to read the weights straight onto (e.g.
+                        torch.device("cuda")). Defaults to CPU.
 
     Returns:
-        A `Qwen2_5_VLForConditionalGeneration` on CPU, ready to be moved to
-        the target device. When lazy=True, the Linear layers inside the model
-        are Fp8Linear instances.
+        A `Qwen2_5_VLForConditionalGeneration` on `device`. When lazy=True, the
+        Linear layers inside the model are Fp8Linear instances.
     """
     from accelerate import init_empty_weights
     from transformers import AutoConfig, Qwen2_5_VLForConditionalGeneration
@@ -421,8 +436,8 @@ def load_qwen25vl_from_fp8_scaled(
     # ---- 1. Stream the state dict ----------------------------------------
     stream_fn = _stream_raw_state_dict if lazy else _stream_dequantized_state_dict
     mode = "lazy (FP8 in memory)" if lazy else "eager (pre-dequantized BF16)"
-    logger.info("Streaming FP8 file [%s]: %s", mode, fp8_path)
-    sd = stream_fn(fp8_path, compute_dtype)
+    logger.info("Streaming FP8 file [%s] → %s: %s", mode, device, fp8_path)
+    sd = stream_fn(fp8_path, compute_dtype, device)
     logger.info("Loaded %d tensors into state dict.", len(sd))
 
     # ---- 2. Detect and apply layout remap ---------------------------------
@@ -457,7 +472,7 @@ def load_qwen25vl_from_fp8_scaled(
             for k in sd
             if k.endswith(".weight") and (k[: -len(".weight")] + ".scale_weight") in sd
         }
-        n_replaced = _replace_fp8_linears(model, fp8_layer_names, compute_dtype)
+        n_replaced = _replace_fp8_linears(model, fp8_layer_names, compute_dtype, device)
         logger.info(
             "Replaced %d nn.Linear → Fp8Linear (FP8 weights will stay in GPU memory).",
             n_replaced,
@@ -465,7 +480,7 @@ def load_qwen25vl_from_fp8_scaled(
 
     # ---- 5. Load state dict ----------------------------------------------
     if sd:
-        logger.info(
+        logger.debug(
             "Example post-remap key: %r  (model expects keys like %r)",
             next(iter(sd)),
             next(iter(model.state_dict())),
@@ -477,7 +492,7 @@ def load_qwen25vl_from_fp8_scaled(
     if missing:
         logger.warning("Missing keys after load (%d, first 5): %s", len(missing), missing[:5])
 
-    n_fixed = _materialize_meta_tensors(model, compute_dtype)
+    n_fixed = _materialize_meta_tensors(model, compute_dtype, device)
     if n_fixed:
         logger.warning(
             "%d meta tensors zero-filled — FP8 file may be incomplete.",

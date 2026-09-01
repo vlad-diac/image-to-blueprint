@@ -68,6 +68,7 @@ def build_lightning_scheduler() -> FlowMatchEulerDiscreteScheduler:
     4-step LoRA. The distillation used AuraFlow shift=3, which maps to
     base_shift = max_shift = log(3) in diffusers' exponential dynamic shifting.
     """
+    logger.info("Scheduler source: FlowMatchEuler (Lightning 4-step config)")
     config = {
         "base_image_seq_len": 256,
         "max_image_seq_len": 8192,
@@ -144,6 +145,7 @@ def build_transformer(
     config_source: str,
     dtype: torch.dtype = torch.bfloat16,
     attention_backend: Optional[str] = None,
+    device: torch.device = torch.device("cpu"),
 ) -> QwenImageTransformer2DModel:
     if path is None:
         logger.info("Transformer source: HF subfolder of %s", config_source)
@@ -157,7 +159,10 @@ def build_transformer(
 
         suffix = path.suffix.lower()
         if suffix == ".gguf":
-            logger.info("Transformer source: GGUF %s", path)
+            # diffusers materialises GGUF on CPU regardless of `device` (the
+            # quantized blocks are moved to the GPU later at pipe.to), so passing
+            # device here is a no-op — we omit it to keep the logs honest.
+            logger.info("Transformer source: GGUF %s → CPU (moved to %s at pipe.to)", path, device)
             transformer = QwenImageTransformer2DModel.from_single_file(
                 str(path),
                 quantization_config=GGUFQuantizationConfig(compute_dtype=dtype),
@@ -166,12 +171,13 @@ def build_transformer(
                 subfolder="transformer",
             )
         elif suffix == ".safetensors":
-            logger.info("Transformer source: single safetensors %s", path)
+            logger.info("Transformer source: single safetensors %s → %s", path, device)
             transformer = QwenImageTransformer2DModel.from_single_file(
                 str(path),
                 torch_dtype=dtype,
                 config=config_source,
                 subfolder="transformer",
+                device=device,
             )
         else:
             raise ValueError(
@@ -190,6 +196,7 @@ def build_vae(
     path: Optional[str | Path],
     config_source: str,
     dtype: torch.dtype = torch.bfloat16,
+    device: torch.device = torch.device("cpu"),
 ) -> AutoencoderKLQwenImage:
     """
     Build an AutoencoderKLQwenImage.
@@ -225,12 +232,12 @@ def build_vae(
     from accelerate import init_empty_weights
     from diffusers.loaders.single_file_utils import convert_wan_vae_to_diffusers
 
-    logger.info("VAE source: single safetensors %s", path)
+    logger.info("VAE source: single safetensors %s → %s", path, device)
     config = _load_subfolder_config(config_source, "vae")
     with init_empty_weights():
         vae = AutoencoderKLQwenImage.from_config(config)
 
-    raw_sd = st.load_file(str(path))
+    raw_sd = st.load_file(str(path), device=str(device))
     logger.info("VAE raw state dict: %d tensors loaded.", len(raw_sd))
 
     converted_sd = convert_wan_vae_to_diffusers(raw_sd)
@@ -253,6 +260,7 @@ def build_text_encoder(
     fmt: str,
     config_source: str,
     dtype: torch.dtype = torch.bfloat16,
+    device: torch.device = torch.device("cpu"),
 ) -> Qwen2_5_VLForConditionalGeneration:
     if path is None:
         logger.info("Text encoder source: HF subfolder of %s", config_source)
@@ -266,9 +274,11 @@ def build_text_encoder(
 
     fmt = (fmt or "fp8_scaled").lower()
     if fmt == "fp8_scaled":
+        logger.info("Text encoder source: FP8 scaled %s → %s", path, device)
         return load_qwen25vl_from_fp8_scaled(
             path, config_source=config_source, compute_dtype=dtype,
             lazy=True,  # keep weights as FP8 on GPU, dequantize per-layer during forward
+            device=device,
         )
     raise ValueError(
         f"Unsupported text_encoder format: {fmt!r} "
@@ -323,41 +333,56 @@ def build_pipeline(
     `attention_backend`: diffusers attention backend for the transformer
     (e.g. `_native_flash`, `flash`, `_flash_3_hub`). None keeps the default.
     """
-    if device == "cuda":
+    target_device = torch.device(device)
+
+    if target_device.type == "cuda":
         torch.backends.cuda.enable_flash_sdp(True)
         torch.backends.cuda.enable_mem_efficient_sdp(True)
         torch.backends.cuda.enable_math_sdp(True)
 
+    # Load each component's weights straight onto the target device to skip the
+    # CPU→GPU copy. When offloading, keep them on CPU so accelerate can shuttle
+    # layers itself; likewise for non-CUDA devices we just load on CPU.
+    load_device = (
+        target_device
+        if target_device.type == "cuda" and not enable_offload
+        else torch.device("cpu")
+    )
     default_repo = components.get("default_repo") or DEFAULT_REPO
     default_local = components.get("default_local")
-    config_source = _resolve_config_source(default_repo, default_local)
-
     tx_cfg = components.get("transformer") or {}
     vae_cfg = components.get("vae") or {}
     te_cfg = components.get("text_encoder") or {}
 
+    logger.info("build_pipeline ▶ load_device=%s target=%s dtype=%s offload=%s",
+                load_device, target_device, dtype, enable_offload)
+
+    config_source = _resolve_config_source(default_repo, default_local)
     transformer = build_transformer(
         path=tx_cfg.get("path"),
         config_source=config_source,
         dtype=dtype,
         attention_backend=attention_backend,
+        device=load_device,
     )
     vae = build_vae(
         path=vae_cfg.get("path"),
         config_source=config_source,
         dtype=dtype,
+        device=load_device,
     )
     text_encoder = build_text_encoder(
         path=te_cfg.get("path"),
         fmt=te_cfg.get("format", "fp8_scaled"),
         config_source=config_source,
         dtype=dtype,
+        device=load_device,
     )
     tokenizer = build_tokenizer(config_source)
     processor = build_processor(config_source)
     scheduler = build_lightning_scheduler()
 
-    logger.info("Assembling QwenImageEditPlusPipeline from explicit components.")
+    logger.info("build_pipeline ▶ assemble QwenImageEditPlusPipeline")
     pipe = QwenImageEditPlusPipeline(
         scheduler=scheduler,
         vae=vae,
@@ -368,21 +393,21 @@ def build_pipeline(
     )
 
     if enable_offload:
+        logger.info("build_pipeline ▶ enable_model_cpu_offload()")
         pipe.enable_model_cpu_offload()
     else:
-        pipe.to(device)
+        # Components already loaded on `load_device`; this only moves whatever
+        # couldn't load on-device (e.g. the GGUF transformer, materialised on CPU).
+        logger.info("build_pipeline ▶ pipe.to(%s)", target_device)
+        pipe.to(target_device)
 
-    if compile_text_encoder and device == "cuda":
+    if compile_text_encoder and target_device.type == "cuda":
         # Use 'aot_eager' backend: eliminates Python per-kernel dispatch overhead
         # without requiring Triton (which is Linux-only and absent on Windows).
         # On Linux with a full Triton install, switch backend to 'inductor' for
         # full kernel fusion and even better GPU utilization.
         backend = "aot_eager"
-        logger.info(
-            "torch.compile(text_encoder, backend=%r) — "
-            "first forward will trigger a one-time JIT trace.",
-            backend,
-        )
+        logger.info("build_pipeline ▶ torch.compile(text_encoder, backend=%r)", backend)
         try:
             pipe.text_encoder = torch.compile(pipe.text_encoder, backend=backend)
         except Exception as exc:
@@ -391,6 +416,7 @@ def build_pipeline(
                 type(exc).__name__, exc,
             )
 
+    logger.info("build_pipeline ▶ done")
     return pipe
 
 
