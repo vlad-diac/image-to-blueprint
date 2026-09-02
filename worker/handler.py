@@ -55,7 +55,10 @@ def _build_pipeline() -> QwenEditPipeline:
 
     # hf_hub_download preserves the repo's subdirectory structure under local_dir,
     # so the VAE (repo path: split_files/vae/…) is nested under its parent dir.
-    transformer_path = _check(MODELS / "unet"         / "qwen-image-edit-2511-Q3_K_L.gguf")
+    # Transformer GGUF is baked into the image (local NVMe) via TRANSFORMER_PATH;
+    # falls back to the network volume when the env override is unset.
+    _default_tx      = MODELS / "unet" / "qwen-image-edit-2511-Q3_K_L.gguf"
+    transformer_path = _check(Path(os.environ.get("TRANSFORMER_PATH", str(_default_tx))))
     vae_path         = _check(MODELS / "vae"          / "split_files" / "vae" / "qwen_image_vae.safetensors")
     te_path          = _check(MODELS / "text_encoders" / "qwen_2.5_vl_7b_fp8_scaled.safetensors")
     snapshot_path    = MODELS / "Qwen--Qwen-Image-Edit-2511"

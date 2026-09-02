@@ -1,6 +1,6 @@
 # Worker — RunPod Serverless Deployment
 
-Single RunPod serverless endpoint that wraps the standalone Qwen-Image-Edit pipeline ([pipeline_utils.py](pipeline_utils.py), [model_utils.py](model_utils.py), [fp8_loader.py](fp8_loader.py) — see [docs/PIPELINE.md](docs/PIPELINE.md) for how the FP8 text encoder, GGUF transformer, VAE and LoRAs load). Weights live on a RunPod network volume (~21 GB: GGUF Q3 transformer + FP8 text encoder + VAE + 2 LoRAs + config snapshot); the container image is lightweight. The pipeline is built **once at module import** in [worker/handler.py](worker/handler.py) — FlashBoot keeps the warm worker hot so subsequent `/run` calls skip the 13 GB load entirely. The handler decodes the base64 input, runs inference, writes `output.png` to `/runpod-volume/jobs/<id>/`, and returns the result inline.
+Single RunPod serverless endpoint that wraps the standalone Qwen-Image-Edit pipeline ([pipeline_utils.py](pipeline_utils.py), [model_utils.py](model_utils.py), [fp8_loader.py](fp8_loader.py) — see [docs/PIPELINE.md](docs/PIPELINE.md) for how the FP8 text encoder, GGUF transformer, VAE and LoRAs load). The **GGUF Q3 transformer (~10 GB)** is fetched into the image at build time (`worker/scripts/download_transformer.py`, run from the Dockerfile) so it loads off the container's local NVMe — this removes the biggest, most-variable cold-start read. The remaining weights (FP8 text encoder + VAE + 2 LoRAs + config snapshot) stay on the RunPod network volume; see the build command in [Deploy](#deploy) step 3. The pipeline is built **once at module import** in [worker/handler.py](worker/handler.py) — FlashBoot keeps the warm worker hot so subsequent `/run` calls skip the 13 GB load entirely. The handler decodes the base64 input, runs inference, writes `output.png` to `/runpod-volume/jobs/<id>/`, and returns the result inline.
 
 ## Prerequisites
 
@@ -27,12 +27,12 @@ Single RunPod serverless endpoint that wraps the standalone Qwen-Image-Edit pipe
    ```
    Wait for it to exit cleanly, then terminate the pod.
 
-3. **Build and push the worker image** (from repo root):
+3. **Build and push the worker image** (from repo root). The **first build downloads ~10 GB** (the GGUF transformer) from HuggingFace into an image layer, so it needs network and ~30–40 GB free disk:
    ```bash
-   docker build -t <your-registry>/blueprint-worker:0.1 -f worker/Dockerfile .
-   docker push <your-registry>/blueprint-worker:0.1
+   docker build --platform linux/amd64 -t <your-registry>/blueprint-worker:0.11 -f worker/Dockerfile .
+   docker push <your-registry>/blueprint-worker:0.11
    ```
-   The image bundles [worker/handler.py](worker/handler.py) plus the pipeline modules ([model_utils.py](model_utils.py), [fp8_loader.py](fp8_loader.py), [pipeline_utils.py](pipeline_utils.py)) and installs [worker/requirements.txt](worker/requirements.txt) (project deps minus `gradio`, plus `runpod`).
+   The image bakes in the GGUF transformer (via [worker/scripts/download_transformer.py](worker/scripts/download_transformer.py), URL from [worker/manifest.json](worker/manifest.json)) and bundles [worker/handler.py](worker/handler.py) plus the pipeline modules ([model_utils.py](model_utils.py), [fp8_loader.py](fp8_loader.py), [pipeline_utils.py](pipeline_utils.py)) and installs [worker/requirements.txt](worker/requirements.txt) (project deps minus `gradio`, plus `runpod`). The download layer sits above the code COPYs, so a handler-only rebuild reuses the cached 10 GB layer. `TRANSFORMER_PATH` is baked into the image — no endpoint env change needed.
 
 4. **Create the serverless template**:
    ```bash

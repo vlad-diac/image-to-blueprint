@@ -7,7 +7,6 @@ grayscale → denoise → threshold → CC cleanup → morph (optional) → skel
 → graph → edge traversal → Douglas–Peucker → geo post-proc (optional)
 → section detect (optional) → SVG paths (grouped by section) → SVG optimisation.
 
-Install: pip install -r requirements-centerline.txt
 
 Each run writes previews under output/svg/<name>_<timestamp>/.
 """
